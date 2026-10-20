@@ -18,10 +18,42 @@ Ein ausführbares Python-Tool, das aus mehreren iCalendar-Quellen einen druckfer
 - Mehrere iCalendar-Quellen werden unterstützt.
 - Die Quellen sind konfigurierbar (z. B. Datei mit Name, Dateipfad oder URL und Darstellungsregeln).
 - Pro Quelle lassen sich Schriftstil, Schriftgröße und Farbe festlegen.
-- Ganztagestermine erhalten eine eigene, konfigurierbare Darstellung (z. B. Feiertage).
-- Mehrtägige Termine werden als Balken über die betroffenen Tage dargestellt (z. B. Ferien, Freizeiten).
 - iCalendar-Datums- und Zeitzonenangaben korrekt auswerten.
 - Ganztages- und mehrtägige Termine: exklusiven Endzeitpunkt (`DTEND`) im iCalendar-Sinne beachten (kein zusätzlicher Tag).
+
+### Uhrzeit
+
+- Termine mit Uhrzeit zeigen diese immer an.
+- Ganztagestermine haben keine Uhrzeit.
+- Der Konfigurationseintrag `show_time` entfällt.
+
+### Ganztagestermine
+
+- Ganztagestermine werden nicht als Kasten dargestellt, sondern als Text ohne Uhrzeit.
+- Schriftstil, Schriftgröße und Farbe bleiben pro Quelle konfigurierbar.
+
+### Feiertage
+
+- Ob ein Kalender Feiertage enthält, legt ein Konfigurationseintrag auf Kalenderebene fest. Die Kennzeichnung gilt für den ganzen Kalender, nicht für einzelne Termine.
+- In einem so markierten Kalender erscheinen eintägige Ganztagestermine in der Wochentagszeile. Sie werden nicht zusätzlich als Text in der Zelle wiederholt.
+- Mehrtägige Ganztagestermine desselben Kalenders folgen der Darstellung für mehrtägige Termine (Balken und Strich), nicht der Wochentagszeile.
+- Zwischen Wochentag und Feiertag steht ein Bindestrich als Abstand.
+- Beispiel: `Do - Neujahrstag`
+- Mehrere Feiertage am selben Tag werden mit Bindestrich aneinandergereiht.
+- Beispiel bei zwei Einträgen: `Do - Neujahrstag - Zweiter Feiertag`
+- Die Reihenfolge ist die konfigurierte Reihenfolge der Kalender, und innerhalb eines Kalenders die Reihenfolge der Termine.
+
+### Mehrtägige Termine
+
+- Balken und Strich gelten nur für ganztägige Termine, die mehr als einen Tag umfassen. Termine mit Uhrzeit, die über Mitternacht reichen, bleiben normale Termine mit Uhrzeit.
+- Der Konfigurationseintrag `as_bar` entfällt.
+- Leere Fortsetzungsbalken an Folgetagen entfallen.
+- Am ersten Tag des Termins und zusätzlich am Ersten jedes weiteren betroffenen Monats: waagerechter Balken mit dem Termintext.
+- Vom waagerechten Balken an läuft ein senkrechter Strich durch die Zelle dieses Tages weiter bis zum letzten Tag des Termins. An den Folgetagen füllt der Strich die ganze Tageszeile. Die Breite beträgt etwa ein Viertel der Zeilenhöhe.
+- Monate sind Spalten. Der Strich läuft innerhalb einer Monatsspalte von Tag zu Tag. Am Ersten eines Folgemonats steht erneut der waagerechte Balken mit Text; der Strich setzt darunter in dieser Spalte fort.
+- Striche stehen am linken Zellenrand, mit etwas Abstand zum Rand. Mehrere gleichzeitige mehrtägige Termine stehen mit Abstand nebeneinander.
+- Überlagerte mehrtägige Termine werden nach früherem Anfangsdatum sortiert, bei gleichem Anfang nach späterem Endedatum. Der erste in dieser Reihenfolge steht links.
+- Termine der betroffenen Tage rücken so weit ein, dass kein Strich sie kreuzt. Der waagerechte Balken beginnt rechts neben bereits laufenden Strichen anderer Termine.
 
 ## Umsetzung
 

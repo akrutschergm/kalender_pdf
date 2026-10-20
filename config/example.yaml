@@ -27,7 +27,7 @@ sources:
   - name: "KAKI Gottesdienste"
     url: "https://vg-sh.church.tools/?q=churchcal/ical&security=yGGggm3rkhMKy9Dj3pyvETDe9iM5jDca&id=193"
     style:
-      font_name: Helvetica
+      font_name: Helvetica-Bold
       font_size: 5.5
       color: "#0b3d91"
       all_day_font_size: 5.5
@@ -37,7 +37,7 @@ sources:
   - name: "KAKI Kinder- und Jugendarbeit"
     url: "https://vg-sh.church.tools/?q=churchcal/ical&security=mims1ENTX9aq6ayQuO0UgTzn8NBV1XbY&id=199"
     style:
-      font_name: Helvetica
+      font_name: Helvetica-Bold
       font_size: 5.5
       color: "#0a7a3e"
       all_day_color: "#0a7a3e"
@@ -46,7 +46,7 @@ sources:
   - name: "KAKI sonstige Veranstaltungen"
     url: "https://vg-sh.church.tools/?q=churchcal/ical&security=rkKPocYsVSvjrNABbbplTSx8jxEspQmU&id=196"
     style:
-      font_name: Helvetica
+      font_name: Helvetica-Bold
       font_size: 5.5
       color: "#8a4b08"
       all_day_color: "#8a4b08"
@@ -56,14 +56,14 @@ sources:
   - name: "VG Ferien und Feiertage"
     url: "https://vg-sh.church.tools/?q=churchcal/ical&security=gLf1lXx2sGcke8hCZPaPEWfaT3JwhfZn&id=34"
     style:
-      font_name: Helvetica-Bold
+      font_name: Helvetica
       font_size: 5.5
-      color: "#6b1d7a"
-      all_day_font_name: Helvetica-Bold
+      color: "#b8b8b8"
+      all_day_font_name: Helvetica
       all_day_font_size: 5.5
-      all_day_color: "#6b1d7a"
-      bar_color: "#9b59b6"
-      bar_text_color: "#ffffff"
+      all_day_color: "#b8b8b8"
+      bar_color: "#b8b8b8"
+      bar_text_color: "#000000"
       bar_font_size: 5.5
       as_bar: true
       show_time: false
