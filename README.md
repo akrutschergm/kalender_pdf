@@ -8,6 +8,8 @@ Python-CLI, das mehrere iCalendar-Quellen zu einem **druckfertigen A2-Jahreskale
 - Ganztägige und mehrtägige Termine (Ferien) als Balken; timed Events mit Uhrzeit
 - Korrekte Behandlung exklusiver `DTEND`-Daten bei ganztägigen iCal-Events
 
+Docs: [Anforderungen](docs/requirements.md) · [Projektkontext](docs/project-context.md)
+
 ## Orientierung
 
 Standard ist **A2 Querformat (`landscape`)**: 12 Monatsspalten brauchen horizontale Breite; 31 Zeilen passen in die Höhe von A2 quer (594 × 420 mm). Portrait ist über die Konfiguration wählbar, liefert aber schmalere Monatsspalten.
