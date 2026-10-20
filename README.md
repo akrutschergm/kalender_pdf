@@ -12,15 +12,95 @@ Python-CLI, das mehrere iCalendar-Quellen zu einem **druckfertigen A2-Jahreskale
 
 Standard ist **A2 Querformat (`landscape`)**: 12 Monatsspalten brauchen horizontale Breite; 31 Zeilen passen in die Höhe von A2 quer (594 × 420 mm). Portrait ist über die Konfiguration wählbar, liefert aber schmalere Monatsspalten.
 
-## Installation
+## Einrichtung (neues System)
+
+Voraussetzung: Python ≥ 3.10.
+
+Empfohlen ist eine **lokale virtuelle Umgebung** (`.venv`). Das Verzeichnis ist in `.gitignore` und gehört nicht ins Repo.
+
+### 1. Virtuelle Umgebung anlegen
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
+python -m venv .venv
 ```
 
-Voraussetzungen: Python ≥ 3.10.
+(Unter Linux/macOS ggf. `python3` statt `python`.)
+
+### 2. Aktivieren
+
+**Windows (PowerShell):**
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+Falls die Ausführung von Skripten blockiert wird:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+Danach `Activate.ps1` erneut ausführen.
+
+**Linux / macOS (bash/zsh):**
+
+```bash
+source .venv/bin/activate
+```
+
+### 3. Paket installieren (erforderlich)
+
+Nur Aktivieren reicht nicht — ohne Installation gibt es keinen Befehl `kalender-pdf`. Im aktivierten venv:
+
+```bash
+python -m pip install -U pip   # optional
+python -m pip install -e .
+```
+
+`-e .` installiert das Projekt editierbar und legt das Console-Skript `kalender-pdf` an.
+
+### 4. Ersten Lauf testen
+
+```bash
+kalender-pdf -c config/example.yaml
+```
+
+Falls `kalender-pdf` nicht gefunden wird (z. B. ohne Console-Skript-Pfad):
+
+```bash
+python -m kalender_pdf -c config/example.yaml
+```
+
+### Alternative ohne venv
+
+```bash
+python -m pip install -e .
+kalender-pdf -c config/example.yaml
+```
+
+## Tägliche Nutzung
+
+Im Projektverzeichnis venv aktivieren, dann ausführen:
+
+```bash
+# Windows PowerShell
+.\.venv\Scripts\Activate.ps1
+
+# Linux / macOS
+source .venv/bin/activate
+
+kalender-pdf -c config/example.yaml
+```
+
+Jahr oder Ausgabepfad überschreiben:
+
+```bash
+kalender-pdf -c config/example.yaml --year 2026 -o output/kalender-2026.pdf
+```
+
+Fallback ohne Console-Skript: `python -m kalender_pdf -c config/example.yaml`.
+
+Bei unerreichbarer oder ungültiger Quelle bricht das Tool mit einer klaren Fehlermeldung ab (kein stilles Überspringen).
 
 ## Konfiguration
 
@@ -37,21 +117,6 @@ Wichtige Felder:
 | `sources[]` | Name, `url` oder `path`, `style` (Farbe, Schrift, `as_bar`, …) |
 
 Weitere Quellen nur in der YAML ergänzen — kein Code nötig.
-
-## PDF erzeugen
-
-```bash
-# mit Standard-Config
-kalender-pdf
-
-# oder
-python -m kalender_pdf -c config/example.yaml
-
-# Jahr / Ausgabe überschreiben
-kalender-pdf -c config/example.yaml --year 2026 -o output/kalender-2026.pdf
-```
-
-Bei unerreichbarer oder ungültiger Quelle bricht das Tool mit einer klaren Fehlermeldung ab (kein stilles Überspringen).
 
 ## Architektur
 
@@ -78,8 +143,10 @@ Die Datei `config/example.yaml` enthält:
 
 ## Tests
 
+Im aktivierten venv:
+
 ```bash
-pip install -e ".[dev]"
+python -m pip install -e ".[dev]"
 pytest
 ```
 
