@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project-specific (kalender_pdf)
+output/*.pdf
+!output/.gitkeep
+!output/kalender-2026.pdf
+*.ics
+.DS_Store
