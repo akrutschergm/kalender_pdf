@@ -84,7 +84,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Quellenfehler: {exc}", file=sys.stderr)
         print(
             "Hinweis: Prüfen Sie URL/Pfad und Netzwerk. "
-            "Lokale .ics-Dateien können über 'path:' statt 'url:' konfiguriert werden.",
+            "Lokale .ics-Dateien können über 'path:' oder 'url: file://…' konfiguriert werden.",
             file=sys.stderr,
         )
         return 1

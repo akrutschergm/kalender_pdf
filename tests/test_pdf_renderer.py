@@ -6,18 +6,28 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from reportlab.lib.pagesizes import A3, landscape
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.pdfmetrics import stringWidth
 
 from kalender_pdf.config import LayoutConfig
 from kalender_pdf.events import CalendarEvent, EventKind, SourceStyle
 from kalender_pdf.pdf_renderer import (
     _register_fonts,
     _resolve_font,
+    allocate_row_heights,
     assign_span_lanes,
+    holiday_color_spans,
+    paint_tracked_lines,
+    wrap_text_lines,
+    wrap_tracked,
+    bar_text_baseline,
+    format_generated_at,
     holiday_line_text,
     row_bottom_spans,
     is_bar_day,
     is_holiday_event,
     is_span_event,
+    YearCalendarRenderer,
     render_year_pdf,
 )
 
@@ -115,6 +125,112 @@ def test_holiday_line_and_span_classification():
     assert not is_span_event(holiday)
     assert is_span_event(vacation)
     assert not is_holiday_event(vacation)
+    assert format_generated_at(datetime(2026, 10, 21, 12, 52)) == "Stand: 21.10.2026 12:52"
+
+
+def test_allocate_expands_busy_row_and_shrinks_others():
+    heights = allocate_row_heights([50, 10, 10], 90)
+    assert heights[0] == 50
+    assert heights[1] == 20
+    assert heights[2] == 20
+    assert sum(heights) == 90
+
+
+def test_allocate_scales_when_content_exceeds_the_page():
+    heights = allocate_row_heights([100, 10, 10], 90)
+    assert sum(heights) == 90
+    assert heights[0] == 100 * 90 / 160
+    assert heights[1] == 30 * 90 / 160
+
+
+def test_max_events_per_cell_hides_the_rest():
+    events = [
+        _event(uid=str(index), summary=f"Termin {index}", start=date(2026, 3, 4), end=date(2026, 3, 5))
+        for index in range(4)
+    ]
+    renderer = YearCalendarRenderer(2026, LayoutConfig(max_events_per_cell=2, show_weekdays=False), events)
+    renderer._col_w = 200
+    renderer._stroke_w = 2
+    renderer._stroke_edge = 1
+    renderer._stroke_gap = 1
+    plan = renderer._plan_cell(3, 4)
+    shown = [line for line in plan.lines if line.layer == "text"]
+    assert len(shown) == 2
+    assert plan.hidden
+
+
+def test_wrap_text_limits_lines():
+    text = "alpha beta gamma delta epsilon zeta"
+    lines = wrap_text_lines(text, "Helvetica", 10, 50, 2)
+    assert len(lines) == 2
+    assert lines[-1].endswith("…")
+    assert len(wrap_text_lines(text, "Helvetica", 10, 50, 1)) == 1
+
+
+def test_holiday_uses_source_font():
+    event = _event(
+        summary="Neujahr",
+        holiday_calendar=True,
+        style=SourceStyle(
+            font_name="Oblique",
+            font_size=11,
+            all_day_font_name="Oblique",
+            all_day_font_size=13,
+            all_day_color="#888888",
+        ),
+    )
+    renderer = YearCalendarRenderer(2026, LayoutConfig(), [event])
+    renderer._col_w = 200
+    renderer._stroke_w = 2
+    renderer._stroke_edge = 1
+    renderer._stroke_gap = 1
+    plan = renderer._plan_cell(1, 1)
+    holiday_lines = [line for line in plan.lines if line.layer == "holiday"]
+    assert holiday_lines
+    used = {run[2] for line in holiday_lines for run in line.runs}
+    assert renderer._font("Oblique") in used
+    assert {run[3] for line in holiday_lines for run in line.runs} == {13.0}
+
+    plain = _event(
+        summary="Karfreitag",
+        holiday_calendar=True,
+        style=SourceStyle(font_name="Oblique", font_size=9),
+    )
+    plain_renderer = YearCalendarRenderer(2026, LayoutConfig(), [plain])
+    plain_renderer._col_w = 200
+    plain_renderer._stroke_w = 2
+    plain_renderer._stroke_edge = 1
+    plain_renderer._stroke_gap = 1
+    plain_plan = plain_renderer._plan_cell(1, 1)
+    plain_lines = [line for line in plain_plan.lines if line.layer == "holiday"]
+    assert {run[3] for line in plain_lines for run in line.runs} == {9.0}
+
+
+def test_holiday_names_wrap_as_one_text():
+    events = [
+        _event(summary="Neujahrstag", holiday_calendar=True),
+        _event(summary="Zweiter Feiertag", holiday_calendar=True, style=SourceStyle(all_day_color="#aa0000")),
+    ]
+    text, spans = holiday_color_spans(events)
+    assert text == "Neujahrstag - Zweiter Feiertag"
+    width = stringWidth("Neujahrstag - ", "Helvetica", 8) + 4
+    parts = wrap_tracked(text, "Helvetica", 8, width, 3)
+    lines = paint_tracked_lines(text, spans, parts)
+    assert len(lines) >= 2
+    flat = "".join(run[0] for line in lines for run in line)
+    assert flat.startswith("Neujahrstag")
+    assert "Zweiter" in flat
+
+
+def test_bar_text_is_vertically_centered():
+    bottom, bar_h, size = 0.0, 9.0, 7.0
+    font_name = "Helvetica-Bold"
+    baseline = bar_text_baseline(font_name, size, bottom, bar_h)
+    ascent = pdfmetrics.getFont(font_name).face.ascent * size / 1000.0
+    gap_below = baseline - bottom
+    gap_above = (bottom + bar_h) - (baseline + ascent)
+    assert abs(gap_below - gap_above) < 0.01
+    assert baseline > (bar_h - size) / 2
     assert holiday_line_text("Do", ["Neujahr"]) == "Do Neujahr"
     assert holiday_line_text("Do", ["Neujahr", "Zweiter Feiertag"]) == "Do Neujahr - Zweiter Feiertag"
 

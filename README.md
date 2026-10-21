@@ -115,9 +115,14 @@ Wichtige Felder:
 | `year` | Kalenderjahr |
 | `output` | Ziel-PDF |
 | `layout.orientation` | `landscape` (empfohlen) oder `portrait` |
-| `layout.timezone` | Anzeige-Zeitzone (Standard `Europe/Berlin`) |
-| `sources[]` | Name, `url` oder `path`, `holidays`, `style` (Farbe, Schrift, …) |
-| `sources[].holidays` | `true`: eintägige Ganztagstermine in der Wochentagszeile (`Do Neujahrstag - Karfreitag`) |
+| `layout.timezone` | Anzeige-Zeitzone (Standard `Europe/Berlin`), auch für `Stand: …` in der Legende |
+| `layout.day_font_size` | Schriftgröße der Tageszahlen |
+| `layout.weekday_font_size` | Schriftgröße der Wochentagskürzel |
+| `layout.max_event_lines` | Höchstens so viele Zeilen pro Termintext (Standard 3) |
+| `layout.max_events_per_cell` | Höchstens so viele Balken und Texttermine pro Zelle (Standard 6). Darüber zeigt die Zelle `...` |
+| `sources[].wrap_text` | `true` (Standard): lange Texte mehrzeilig. `false`: eine Zeile mit Auslassung |
+| `sources[]` | Name, `url` oder `path`, `holidays`, `style` (Farbe, Schrift, …). `file://name.ics` liegt relativ zur Konfigurationsdatei |
+| `sources[].holidays` | `true`: eintägige Ganztagstermine als erste Zeile der Zelle (`Neujahrstag - Karfreitag`) |
 
 Weitere Quellen nur in der YAML ergänzen — kein Code nötig.
 

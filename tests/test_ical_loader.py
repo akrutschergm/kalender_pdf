@@ -47,6 +47,7 @@ def test_parse_and_expand(tmp_path: Path):
     holiday = by_uid["holiday-1"]
     assert holiday.all_day
     assert holiday.holiday_calendar
+    assert holiday.wrap_text
     assert holiday.kind == EventKind.ALL_DAY
     assert holiday.event_index < by_uid["vacation-1"].event_index
     assert holiday.dates_in_range(date(2026, 1, 1), date(2026, 12, 31)) == [date(2026, 1, 1)]

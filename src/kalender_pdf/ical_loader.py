@@ -178,6 +178,7 @@ def component_to_event(
         location=location,
         description=description,
         holiday_calendar=source.holidays,
+        wrap_text=source.wrap_text,
     )
 
 

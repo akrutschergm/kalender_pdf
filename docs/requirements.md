@@ -16,12 +16,15 @@ Ein ausführbares Python-Tool, das aus mehreren iCalendar-Quellen einen druckfer
 - `alternate_month_bg_color` ist optional. Gerade Monate (Februar, April, …) erhalten diese Hintergrundfarbe. Samstage und Sonntage behalten in allen Monaten `weekend_bg_color`.
 - Ist `alternate_month_bg_color` gesetzt, entfallen die senkrechten Linien, auch an der Spalte mit den Tageszahlen. Es bleiben die waagerechten Trennlinien.
 - Ohne diese Farbe bleibt der einheitliche Hintergrund mit senkrechtem Raster.
+- `day_font_size` setzt die Schriftgröße der Tageszahlen, `weekday_font_size` die der Wochentagskürzel in der Zelle. Die Kürzel stehen links und sind in der Zeile vertikal zentriert, wie die Tageszahlen. Feiertagsnamen nutzen `all_day_font_size` ihrer Quelle, sonst `font_size`.
+- In der Zeile der Legende steht rechtsbündig Datum und Uhrzeit der Erstellung, zum Beispiel `Stand: 21.10.2026 12:52`. Die Zeit folgt `layout.timezone`.
 - Das Layout soll für den Ausdruck gut lesbar sein und die Seitenfläche sinnvoll nutzen.
 
 ## iCalendar-Quellen und Darstellung
 
 - Mehrere iCalendar-Quellen werden unterstützt.
 - Die Quellen sind konfigurierbar (z. B. Datei mit Name, Dateipfad oder URL und Darstellungsregeln).
+- Eine lokale Datei kann als `url: file://feiertage_2027.ics` angegeben werden. Der Pfad gilt relativ zum Ordner der Konfigurationsdatei. Absolute `file:///`-Pfade bleiben absolut.
 - Pro Quelle lassen sich Schriftstil, Schriftgröße und Farbe festlegen. Der konfigurierte Stil wird verwendet, auch fett und kursiv.
 - iCalendar-Datums- und Zeitzonenangaben korrekt auswerten.
 - Ganztages- und mehrtägige Termine: exklusiven Endzeitpunkt (`DTEND`) im iCalendar-Sinne beachten (kein zusätzlicher Tag).
@@ -40,14 +43,21 @@ Ein ausführbares Python-Tool, das aus mehreren iCalendar-Quellen einen druckfer
 ### Feiertage
 
 - Ob ein Kalender Feiertage enthält, legt der Eintrag `holidays: true` auf der Quelle fest. Die Kennzeichnung gilt für den ganzen Kalender, nicht für einzelne Termine.
-- In einem so markierten Kalender erscheinen eintägige Ganztagestermine in der Wochentagszeile. Sie werden nicht zusätzlich als Text in der Zelle wiederholt.
-- Mehrtägige Ganztagestermine desselben Kalenders folgen der Darstellung für mehrtägige Termine (Balken und Strich), nicht der Wochentagszeile.
-- Beispiel: `Do Neujahrstag`
-- Mehrere Feiertage am selben Tag werden mit Bindestrich voneinander getrennt. Zwischen Wochentag und Feiertag steht kein Bindestrich.
-- Beispiel bei zwei Einträgen: `Do Neujahrstag - Zweiter Feiertag`
+- In einem so markierten Kalender erscheinen eintägige Ganztagestermine als erste Zeile der Tageszelle. Sie werden nicht zusätzlich als weiterer Text in der Zelle wiederholt.
+- Diese Tage erhalten denselben Hintergrund wie Wochenenden, `layout.weekend_bg_color`.
+- Mehrtägige Ganztagestermine desselben Kalenders folgen der Darstellung für mehrtägige Termine (Balken und Strich), nicht der ersten Zeile.
+- Beispiel: `Neujahrstag`
+- Mehrere Feiertage am selben Tag werden mit Bindestrich voneinander getrennt.
+- Beispiel bei zwei Einträgen: `Neujahrstag - Zweiter Feiertag`
 - Die Reihenfolge ist die konfigurierte Reihenfolge der Kalender, und innerhalb eines Kalenders die Reihenfolge der Termine.
-- Das Wochentagskürzel steht links und bleibt frei. Feiertagsnamen und übrige Termine beginnen rechts davon auf derselben Einzugslinie.
-- Feiertage stehen in der ersten Zeile. Gibt es an dem Tag keinen Feiertag, nutzt der erste Termin diese Zeile neben dem Wochentag.
+- Das Wochentagskürzel steht links, vertikal in der Zeile zentriert, und bleibt frei. Feiertagsnamen und übrige Termine beginnen rechts davon auf derselben Einzugslinie.
+- Feiertage sind die erste Inhaltszeile und stehen nicht in derselben Zeile wie das Wochentagskürzel. Gibt es an dem Tag keinen Feiertag, beginnt der erste Termin oben in der Zelle.
+- Die Feiertagsnamen eines Tages sind ein gemeinsamer Text. Er wird wie ein Termin umbrochen oder auf eine Zeile gekürzt.
+- Lange Termintexte werden standardmäßig mehrzeilig dargestellt, höchstens `layout.max_event_lines` Zeilen (Standard 3). Die letzte Zeile endet mit Auslassung, wenn der Text nicht vollständig passt. Pro Quelle schaltet `wrap_text: false` auf eine einzelne Zeile.
+- Reicht die Höhe einer Tageszeile für die Termine nicht, wird diese Zeile so weit gedehnt wie nötig. Die übrigen Tageszeilen werden anteilig verkleinert.
+- Passt diese Aufteilung nicht auf die Seite, werden alle Tageszeilen anteilig verkleinert, bis sie auf das Blatt passen.
+- `layout.max_events_per_cell` begrenzt, wie viele Balken und Texttermine in einer Zelle gezeichnet werden (Standard 6). Feiertage in der ersten Zeile zählen nicht mit. Weitere Termine werden weggelassen.
+- Termine, die wegen dieser Grenze oder wegen zu geringer Zeilenhöhe nicht in die Zelle passen, werden durch `...` in der rechten unteren Ecke angezeigt. Das Zeichen liegt über Terminen, Balken und Strichen.
 
 ### Mehrtägige Termine
 

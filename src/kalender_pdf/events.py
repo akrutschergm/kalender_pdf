@@ -66,6 +66,7 @@ class CalendarEvent:
     description: str | None = None
     meta: dict = field(default_factory=dict)
     holiday_calendar: bool = False
+    wrap_text: bool = True
     source_index: int = 0
     event_index: int = 0
 

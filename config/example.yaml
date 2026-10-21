@@ -8,16 +8,22 @@ year: 2027
 output: output/kalender-2027.pdf
 
 layout:
-  page_size: A2
+  page_size: A3
   orientation: landscape
   margin_mm: 8
   day_label_width_mm: 7
   header_height_mm: 6
-  title: "Jahreskalender 2027 – KAKI / VG"
+  title: "Jahreskalender 2027 – KAKI / VG / EC"
   timezone: Europe/Berlin
   show_weekdays: true
+  # Tageszahlen links (1–31) und Wochentagskürzel in der Zelle (Mo, Di, …).
+  day_font_size: 7
+  weekday_font_size: 7
+  # Balken und Texttermine pro Zelle. Weitere Termine erscheinen als „...“ rechts unten.
   max_events_per_cell: 5
-  bar_height_pt: 7.0
+  # Lange Termintexte umbrechen. Pro Quelle mit wrap_text: false auf eine Zeile begrenzen.
+  max_event_lines: 2
+  bar_height_pt: 9.0
   header_bg_color: "#1f3a5f"
   weekend_bg_color: "#d9e6f2"
   # Weglassen = kein Hintergrund für Tage, die es nicht gibt (30.02., 31.04., …).
@@ -31,7 +37,7 @@ sources:
     url: "https://vg-sh.church.tools/?q=churchcal/ical&security=yGGggm3rkhMKy9Dj3pyvETDe9iM5jDca&id=193"
     style:
       font_name: Bold
-      font_size: 5.5
+      font_size: 7
       color: "#3e70ce"
       all_day_color: "#3e70ce"
 
@@ -39,7 +45,7 @@ sources:
     url: "https://vg-sh.church.tools/?q=churchcal/ical&security=mims1ENTX9aq6ayQuO0UgTzn8NBV1XbY&id=199"
     style:
       font_name: Bold
-      font_size: 5.5
+      font_size: 7
       color: "#16a765"
       all_day_color: "#16a765"
 
@@ -47,7 +53,7 @@ sources:
     url: "https://vg-sh.church.tools/?q=churchcal/ical&security=rkKPocYsVSvjrNABbbplTSx8jxEspQmU&id=196"
     style:
       font_name: Bold
-      font_size: 5.5
+      font_size: 7
       color: "#a47ae2"
       all_day_color: "#a47ae2"
 
@@ -55,7 +61,7 @@ sources:
     url: "https://vg-sh.church.tools/?q=churchcal/ical&security=YqWxP8WtvIvt9q7FwoxyCitMFEO6xyVE&id=205"
     style:
       font_name: Bold
-      font_size: 5.5
+      font_size: 7
       color: "#9fc6e7"
       all_day_color: "#9fc6e7"
 
@@ -64,7 +70,7 @@ sources:
     enabled: false
     style:
       font_name: Bold
-      font_size: 5.5
+      font_size: 7
       color: "#9fc6e7"
       all_day_color: "#9fc6e7"
 
@@ -75,19 +81,19 @@ sources:
     style:
       font_name: Oblique
       font_size: 5.5
-      color: "#b8b8b8"
+      color: "#808080"
       all_day_font_name: Oblique
       all_day_font_size: 5.5
-      all_day_color: "#b8b8b8"
+      all_day_color: "#808080"
       bar_color: "#b8b8b8"
       bar_text_color: "#ffffff"
-      bar_font_size: 5.5
+      bar_font_size: 7
 
   - name: "VG Veranstaltungen"
     url: "https://vg-sh.church.tools/?q=churchcal/ical&security=4oYZByr6ImioJp2vXf5IkadVYWEU3etp&id=263"
     style:
       font_name: Regular
-      font_size: 5.5
+      font_size: 7
       color: "#a31d2c"
       all_day_color: "#a31d2c"
 
@@ -95,7 +101,7 @@ sources:
     url: "https://vg-sh.church.tools/?q=churchcal/ical&security=mQRqqvEMJnGCZijcYpkCDqTBhCvPyucP&id=308"
     style:
       font_name: Regular
-      font_size: 5.5
+      font_size: 7
       color: "#7bd148"
       all_day_color: "#7bd148"
 
