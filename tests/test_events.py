@@ -11,7 +11,7 @@ def _event(**kwargs) -> CalendarEvent:
         uid="x",
         summary="Test",
         source_name="S",
-        style=SourceStyle(as_bar=True),
+        style=SourceStyle(),
         start=date(2026, 1, 1),
         end=date(2026, 1, 2),
         all_day=True,
@@ -57,3 +57,13 @@ def test_timed_label():
         summary="Gottesdienst",
     )
     assert ev.label("Europe/Berlin") == "10:30 Gottesdienst"
+
+
+def test_timed_spanning_midnight_stays_timed():
+    tz = ZoneInfo("Europe/Berlin")
+    kind = classify_kind(
+        datetime(2026, 5, 1, 18, 0, tzinfo=tz),
+        datetime(2026, 5, 3, 12, 0, tzinfo=tz),
+        False,
+    )
+    assert kind == EventKind.TIMED

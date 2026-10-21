@@ -38,14 +38,17 @@ def test_parse_and_expand(tmp_path: Path):
     source = SourceConfig(
         name="Test",
         path=str(ics),
-        style=SourceStyle(as_bar=True, show_time=True),
+        style=SourceStyle(),
+        holidays=True,
     )
     events = expand_source_events(source, 2026, timezone_name="Europe/Berlin")
     by_uid = {e.uid.split("#")[0]: e for e in events}
 
     holiday = by_uid["holiday-1"]
     assert holiday.all_day
+    assert holiday.holiday_calendar
     assert holiday.kind == EventKind.ALL_DAY
+    assert holiday.event_index < by_uid["vacation-1"].event_index
     assert holiday.dates_in_range(date(2026, 1, 1), date(2026, 12, 31)) == [date(2026, 1, 1)]
 
     vacation = by_uid["vacation-1"]

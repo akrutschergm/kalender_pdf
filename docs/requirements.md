@@ -34,7 +34,7 @@ Ein ausführbares Python-Tool, das aus mehreren iCalendar-Quellen einen druckfer
 
 ### Feiertage
 
-- Ob ein Kalender Feiertage enthält, legt ein Konfigurationseintrag auf Kalenderebene fest. Die Kennzeichnung gilt für den ganzen Kalender, nicht für einzelne Termine.
+- Ob ein Kalender Feiertage enthält, legt der Eintrag `holidays: true` auf der Quelle fest. Die Kennzeichnung gilt für den ganzen Kalender, nicht für einzelne Termine.
 - In einem so markierten Kalender erscheinen eintägige Ganztagestermine in der Wochentagszeile. Sie werden nicht zusätzlich als Text in der Zelle wiederholt.
 - Mehrtägige Ganztagestermine desselben Kalenders folgen der Darstellung für mehrtägige Termine (Balken und Strich), nicht der Wochentagszeile.
 - Zwischen Wochentag und Feiertag steht ein Bindestrich als Abstand.
@@ -49,11 +49,11 @@ Ein ausführbares Python-Tool, das aus mehreren iCalendar-Quellen einen druckfer
 - Der Konfigurationseintrag `as_bar` entfällt.
 - Leere Fortsetzungsbalken an Folgetagen entfallen.
 - Am ersten Tag des Termins und zusätzlich am Ersten jedes weiteren betroffenen Monats: waagerechter Balken mit dem Termintext.
-- Vom waagerechten Balken an läuft ein senkrechter Strich durch die Zelle dieses Tages weiter bis zum letzten Tag des Termins. An den Folgetagen füllt der Strich die ganze Tageszeile. Die Breite beträgt etwa ein Viertel der Zeilenhöhe.
+- Vom waagerechten Balken an läuft ein senkrechter Strich durch die Zelle dieses Tages weiter bis zum letzten Tag des Termins. An den Folgetagen füllt der Strich die ganze Tageszeile. Die Breite beträgt etwa ein Sechzehntel der Zeilenhöhe.
 - Monate sind Spalten. Der Strich läuft innerhalb einer Monatsspalte von Tag zu Tag. Am Ersten eines Folgemonats steht erneut der waagerechte Balken mit Text; der Strich setzt darunter in dieser Spalte fort.
-- Striche stehen am linken Zellenrand, mit etwas Abstand zum Rand. Mehrere gleichzeitige mehrtägige Termine stehen mit Abstand nebeneinander.
-- Überlagerte mehrtägige Termine werden nach früherem Anfangsdatum sortiert, bei gleichem Anfang nach späterem Endedatum. Der erste in dieser Reihenfolge steht links.
-- Termine der betroffenen Tage rücken so weit ein, dass kein Strich sie kreuzt. Der waagerechte Balken beginnt rechts neben bereits laufenden Strichen anderer Termine.
+- Striche stehen am rechten Zellenrand, mit etwas Abstand zum Rand. Mehrere gleichzeitige mehrtägige Termine stehen mit Abstand nebeneinander.
+- Überlagerte mehrtägige Termine werden nach früherem Anfangsdatum sortiert, bei gleichem Anfang nach späterem Endedatum. Der erste in dieser Reihenfolge steht rechts, weitere Striche schließen nach links an.
+- Termine der betroffenen Tage enden vor den Strichen, damit kein Strich sie kreuzt. Der waagerechte Balken endet links von bereits laufenden Strichen anderer Termine; der eigene Strich setzt an seinem rechten Ende an.
 
 ## Umsetzung
 

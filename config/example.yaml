@@ -12,12 +12,12 @@ layout:
   orientation: landscape
   margin_mm: 8
   day_label_width_mm: 7
-  header_height_mm: 12
+  header_height_mm: 6
   title: "Jahreskalender 2026 – KAKI / VG"
   timezone: Europe/Berlin
   show_weekdays: true
   max_events_per_cell: 5
-  bar_height_pt: 7.5
+  bar_height_pt: 7.0
   header_bg_color: "#1f3a5f"
   weekend_bg_color: "#f3f6f9"
   empty_day_bg_color: "#e8e8e8"
@@ -32,7 +32,6 @@ sources:
       color: "#0b3d91"
       all_day_font_size: 5.5
       all_day_color: "#0b3d91"
-      show_time: true
 
   - name: "KAKI Kinder- und Jugendarbeit"
     url: "https://vg-sh.church.tools/?q=churchcal/ical&security=mims1ENTX9aq6ayQuO0UgTzn8NBV1XbY&id=199"
@@ -41,7 +40,6 @@ sources:
       font_size: 5.5
       color: "#0a7a3e"
       all_day_color: "#0a7a3e"
-      show_time: true
 
   - name: "KAKI sonstige Veranstaltungen"
     url: "https://vg-sh.church.tools/?q=churchcal/ical&security=rkKPocYsVSvjrNABbbplTSx8jxEspQmU&id=196"
@@ -50,23 +48,21 @@ sources:
       font_size: 5.5
       color: "#8a4b08"
       all_day_color: "#8a4b08"
-      show_time: true
 
-  # Ferien/Feiertage: ganztägig, Balken für Mehrtages-Spannen (Ferien)
+  # Feiertage in der Wochentagszeile, mehrtägige Ferien als Balken und Strich
   - name: "VG Ferien und Feiertage"
     url: "https://vg-sh.church.tools/?q=churchcal/ical&security=gLf1lXx2sGcke8hCZPaPEWfaT3JwhfZn&id=34"
+    holidays: true
     style:
-      font_name: Helvetica
+      font_name: Helvetica-Oblique
       font_size: 5.5
       color: "#b8b8b8"
-      all_day_font_name: Helvetica
+      all_day_font_name: Helvetica-Oblique
       all_day_font_size: 5.5
       all_day_color: "#b8b8b8"
       bar_color: "#b8b8b8"
       bar_text_color: "#000000"
       bar_font_size: 5.5
-      as_bar: true
-      show_time: false
 
   - name: "VG Veranstaltungen"
     url: "https://vg-sh.church.tools/?q=churchcal/ical&security=4oYZByr6ImioJp2vXf5IkadVYWEU3etp&id=263"
@@ -75,7 +71,6 @@ sources:
       font_size: 5.5
       color: "#a31d2c"
       all_day_color: "#a31d2c"
-      show_time: true
 
 # Weitere Quellen: Block kopieren, name/url (oder path) und style anpassen.
 # Lokale Datei statt URL:

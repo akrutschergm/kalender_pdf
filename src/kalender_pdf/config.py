@@ -21,6 +21,7 @@ class SourceConfig:
     url: str | None = None
     path: str | None = None
     enabled: bool = True
+    holidays: bool = False
     style: SourceStyle = field(default_factory=SourceStyle)
 
     def __post_init__(self) -> None:
@@ -87,8 +88,6 @@ def _parse_style(raw: dict[str, Any] | None) -> SourceStyle:
         "bar_color",
         "bar_text_color",
         "bar_font_size",
-        "show_time",
-        "as_bar",
     }
     unknown = set(raw) - known
     if unknown:
@@ -96,12 +95,21 @@ def _parse_style(raw: dict[str, Any] | None) -> SourceStyle:
     return SourceStyle(**raw)
 
 
+_PAGE_SIZES = {"A0", "A1", "A2", "A3", "A4", "A5", "A6"}
+
+
 def _parse_layout(raw: dict[str, Any] | None) -> LayoutConfig:
     if not raw:
         return LayoutConfig()
+    raw = dict(raw)
     orientation = raw.get("orientation", "landscape")
     if orientation not in {"landscape", "portrait"}:
         raise ConfigError("layout.orientation muss 'landscape' oder 'portrait' sein")
+    page_size = str(raw.get("page_size", "A2")).upper()
+    if page_size not in _PAGE_SIZES:
+        known = ", ".join(sorted(_PAGE_SIZES))
+        raise ConfigError(f"layout.page_size muss eine der Größen {known} sein")
+    raw["page_size"] = page_size
     known = {f.name for f in LayoutConfig.__dataclass_fields__.values()}  # type: ignore[attr-defined]
     unknown = set(raw) - known
     if unknown:
@@ -118,6 +126,7 @@ def _parse_source(raw: dict[str, Any], index: int) -> SourceConfig:
         url=raw.get("url"),
         path=raw.get("path"),
         enabled=bool(raw.get("enabled", True)),
+        holidays=bool(raw.get("holidays", False)),
         style=style,
     )
 

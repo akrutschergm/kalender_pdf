@@ -5,11 +5,11 @@ from __future__ import annotations
 import calendar
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 
 from reportlab.lib.colors import Color, HexColor
-from reportlab.lib.pagesizes import A2, landscape, portrait
+from reportlab.lib.pagesizes import A0, A1, A2, A3, A4, A5, A6, landscape, portrait
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -86,85 +86,131 @@ def _resolve_font(name: str, fonts: dict[str, str]) -> str:
     return fonts.get(name, fonts.get("Regular", name))
 
 
+_PAGE_SIZES = {
+    "A0": A0,
+    "A1": A1,
+    "A2": A2,
+    "A3": A3,
+    "A4": A4,
+    "A5": A5,
+    "A6": A6,
+}
+
+
 def _page_size(layout: LayoutConfig) -> tuple[float, float]:
-    base = A2
-    if layout.page_size.upper() != "A2":
-        # Nur A2 wird offiziell unterstützt; andere Größen trotzdem übergeben
-        base = A2
+    key = layout.page_size.upper()
+    base = _PAGE_SIZES.get(key)
+    if base is None:
+        known = ", ".join(sorted(_PAGE_SIZES))
+        raise ValueError(f"Unbekannte page_size '{layout.page_size}'. Erlaubt: {known}")
     if layout.orientation == "portrait":
         return portrait(base)
     return landscape(base)
-
-
-@dataclass
-class CellEvent:
-    event: CalendarEvent
-    is_bar_segment: bool
-    bar_continues_prev: bool
-    bar_continues_next: bool
-    bar_span_days_in_month: int
-    bar_day_index: int  # 0-basiert innerhalb des Monatssegments
 
 
 def _days_in_month(year: int, month: int) -> int:
     return calendar.monthrange(year, month)[1]
 
 
-def _build_cell_map(
+def is_span_event(event: CalendarEvent) -> bool:
+    """Ganztägiger Termin über mehr als einen Tag: Balken und senkrechter Strich."""
+    return event.all_day and event.kind == EventKind.MULTI_DAY
+
+
+def is_holiday_event(event: CalendarEvent) -> bool:
+    """Eintägiger Ganztagstermin eines als Feiertagskalender markierten Kalenders."""
+    return (
+        event.holiday_calendar
+        and event.all_day
+        and event.kind == EventKind.ALL_DAY
+    )
+
+
+def is_bar_day(event: CalendarEvent, day: date) -> bool:
+    """Waagerechter Balken am ersten Tag und am Ersten jedes weiteren Monats."""
+    if day < event.start_date or day > event.last_inclusive_date:
+        return False
+    if day == event.start_date:
+        return True
+    return day.day == 1
+
+
+def holiday_line_text(weekday: str, names: list[str]) -> str:
+    """Wochentagszeile: ``Do - Neujahrstag - Zweiter Feiertag``."""
+    if not names:
+        return weekday
+    return " - ".join([weekday, *names])
+
+
+def _ranges_overlap(a: CalendarEvent, b: CalendarEvent) -> bool:
+    return a.start_date <= b.last_inclusive_date and b.start_date <= a.last_inclusive_date
+
+
+def assign_span_lanes(events: list[CalendarEvent]) -> dict[int, int]:
+    """Stabile Spur pro Mehrtagestermin.
+
+    Früherer Anfang steht rechts, bei gleichem Anfang der später endende Termin.
+    Eine Spur bleibt über die ganze Spanne gleich, damit der Strich gerade durchläuft.
+    Überlappende Termine bekommen die nächste Spur links daneben.
+    """
+    spans = [event for event in events if is_span_event(event)]
+    spans.sort(
+        key=lambda event: (
+            event.start_date,
+            -event.last_inclusive_date.toordinal(),
+            event.source_index,
+            event.event_index,
+            event.summary,
+        )
+    )
+    placed: list[tuple[CalendarEvent, int]] = []
+    lanes: dict[int, int] = {}
+    for event in spans:
+        used = [lane for other, lane in placed if _ranges_overlap(event, other)]
+        lane = max(used) + 1 if used else 0
+        placed.append((event, lane))
+        lanes[id(event)] = lane
+    return lanes
+
+
+def _index_events(
     events: list[CalendarEvent],
     year: int,
-) -> dict[tuple[int, int], list[CellEvent]]:
-    """Map (month, day) → darzustellende Einträge."""
+) -> tuple[
+    dict[tuple[int, int], list[CalendarEvent]],
+    dict[tuple[int, int], list[CalendarEvent]],
+    list[CalendarEvent],
+]:
+    """Text-Termine, Feiertage und Mehrtages-Termine für das Jahr."""
     year_start = date(year, 1, 1)
     year_end = date(year, 12, 31)
-    cells: dict[tuple[int, int], list[CellEvent]] = defaultdict(list)
+    texts: dict[tuple[int, int], list[CalendarEvent]] = defaultdict(list)
+    holidays: dict[tuple[int, int], list[CalendarEvent]] = defaultdict(list)
+    spans: list[CalendarEvent] = []
 
     for event in events:
         days = event.dates_in_range(year_start, year_end)
         if not days:
             continue
+        if is_span_event(event):
+            spans.append(event)
+            continue
+        for day in days:
+            key = (day.month, day.day)
+            if is_holiday_event(event):
+                holidays[key].append(event)
+            else:
+                texts[key].append(event)
 
-        use_bar = event.style.as_bar or event.kind == EventKind.MULTI_DAY
-        if use_bar and event.all_day and len(days) >= 1:
-            # Pro Monat ein Balken-Segment (Spalten sind monatsweise)
-            by_month: dict[int, list[date]] = defaultdict(list)
-            for d in days:
-                by_month[d.month].append(d)
-            for month, month_days in by_month.items():
-                month_days.sort()
-                for idx, d in enumerate(month_days):
-                    cells[(month, d.day)].append(
-                        CellEvent(
-                            event=event,
-                            is_bar_segment=True,
-                            bar_continues_prev=idx > 0,
-                            bar_continues_next=idx < len(month_days) - 1,
-                            bar_span_days_in_month=len(month_days),
-                            bar_day_index=idx,
-                        )
-                    )
-        else:
-            for d in days:
-                cells[(d.month, d.day)].append(
-                    CellEvent(
-                        event=event,
-                        is_bar_segment=False,
-                        bar_continues_prev=False,
-                        bar_continues_next=False,
-                        bar_span_days_in_month=1,
-                        bar_day_index=0,
-                    )
-                )
+    def text_key(event: CalendarEvent) -> tuple:
+        start_key = event.start.isoformat() if hasattr(event.start, "isoformat") else str(event.start)
+        return (start_key, event.summary, event.source_index, event.event_index)
 
-    # Sortierung: Bars zuerst, dann nach Startzeit / Titel
-    def sort_key(ce: CellEvent) -> tuple:
-        ev = ce.event
-        start_key = ev.start.isoformat() if hasattr(ev.start, "isoformat") else str(ev.start)
-        return (0 if ce.is_bar_segment else 1, start_key, ev.summary)
-
-    for key in cells:
-        cells[key].sort(key=sort_key)
-    return cells
+    for key in texts:
+        texts[key].sort(key=text_key)
+    for key in holidays:
+        holidays[key].sort(key=lambda event: (event.source_index, event.event_index, event.summary))
+    return texts, holidays, spans
 
 
 def _truncate(text: str, font_name: str, font_size: float, max_width: float) -> str:
@@ -186,13 +232,41 @@ def _truncate(text: str, font_name: str, font_size: float, max_width: float) -> 
     return best
 
 
+def _fit_segments(
+    segments: list[tuple[str, Color]],
+    font_name: str,
+    font_size: float,
+    max_width: float,
+) -> list[tuple[str, Color]]:
+    """Kürzt die Wochentagszeile am Ende, wenn sie nicht in die Zelle passt."""
+    total = sum(pdfmetrics.stringWidth(text, font_name, font_size) for text, _color in segments)
+    if total <= max_width:
+        return segments
+    fitted: list[tuple[str, Color]] = []
+    used = 0.0
+    ellipsis_w = pdfmetrics.stringWidth("…", font_name, font_size)
+    for text, color in segments:
+        width = pdfmetrics.stringWidth(text, font_name, font_size)
+        if used + width <= max_width:
+            fitted.append((text, color))
+            used += width
+            continue
+        remaining = max_width - used
+        if remaining <= ellipsis_w:
+            break
+        fitted.append((_truncate(text, font_name, font_size, remaining), color))
+        break
+    return fitted
+
+
 class YearCalendarRenderer:
     def __init__(self, year: int, layout: LayoutConfig, events: list[CalendarEvent]):
         self.year = year
         self.layout = layout
         self.events = events
         self.fonts = _register_fonts()
-        self.cells = _build_cell_map(events, year)
+        self.texts, self.holidays, self.spans = _index_events(events, year)
+        self.lanes = assign_span_lanes(self.spans)
 
     def render(self, output_path: Path) -> Path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -290,21 +364,6 @@ class YearCalendarRenderer:
                     if d.weekday() >= 5:
                         c.setFillColor(weekend_bg)
                         c.rect(x, row_bottom, col_w, row_h, fill=1, stroke=0)
-                    if layout.show_weekdays:
-                        wd = WEEKDAY_SHORT_DE[d.weekday()]
-                        c.setFillColor(_color("#888888"))
-                        c.setFont(day_font, max(5.0, layout.day_font_size - 1.5))
-                        c.drawString(x + 1.2 * mm, row_top - 3.2 * mm, wd)
-
-                    self._draw_cell_events(
-                        c,
-                        month,
-                        day,
-                        x,
-                        row_bottom,
-                        col_w,
-                        row_h,
-                    )
 
                 c.setStrokeColor(grid_line)
                 c.setLineWidth(0.3)
@@ -326,6 +385,24 @@ class YearCalendarRenderer:
             fill=0,
             stroke=1,
         )
+
+        # Striche und Texte über dem Raster, damit der Strich die Tagesgrenze überdeckt.
+        for day in range(1, 32):
+            row_top = grid_top - header_h - (day - 1) * row_h
+            row_bottom = row_top - row_h
+            for month in range(1, 13):
+                if day > _days_in_month(self.year, month):
+                    continue
+                x = grid_left + day_label_w + (month - 1) * col_w
+                self._draw_cell_contents(
+                    c,
+                    month,
+                    day,
+                    x,
+                    row_bottom,
+                    col_w,
+                    row_h,
+                )
 
     def _draw_legend(
         self, c: canvas.Canvas, x: float, y: float, max_width: float
@@ -351,7 +428,45 @@ class YearCalendarRenderer:
             c.drawString(cursor_x, y, name)
             cursor_x += pdfmetrics.stringWidth(name, font, size) + 4 * mm
 
-    def _draw_cell_events(
+    def _lane_metrics(
+        self, row_h: float, col_w: float, lane_count: int
+    ) -> tuple[float, float, float]:
+        """Strichbreite ≈ 1/16 Zeilenhöhe, etwas Abstand zum Rand und zwischen den Spuren."""
+        stroke_w = row_h / 16
+        edge = 0.55 * mm
+        gap = 0.4 * mm
+        if lane_count <= 0:
+            return stroke_w, edge, gap
+        block = edge + lane_count * stroke_w + max(0, lane_count - 1) * gap
+        limit = col_w * 0.62
+        if block > limit and block > 0:
+            scale = limit / block
+            stroke_w *= scale
+            edge *= scale
+            gap *= scale
+        return stroke_w, edge, gap
+
+    def _lane_x(
+        self, cell_right: float, lane: int, stroke_w: float, edge: float, gap: float
+    ) -> float:
+        """Linke Kante des Strichs. Spur 0 liegt am rechten Zellenrand."""
+        return cell_right - edge - (lane + 1) * stroke_w - lane * gap
+
+    def _content_right(
+        self,
+        cell_right: float,
+        lanes: list[int],
+        stroke_w: float,
+        edge: float,
+        gap: float,
+        pad: float,
+    ) -> float:
+        if not lanes:
+            return cell_right - pad
+        max_lane = max(lanes)
+        return self._lane_x(cell_right, max_lane, stroke_w, edge, gap) - pad
+
+    def _draw_cell_contents(
         self,
         c: canvas.Canvas,
         month: int,
@@ -362,83 +477,184 @@ class YearCalendarRenderer:
         row_h: float,
     ) -> None:
         layout = self.layout
-        items = self.cells.get((month, day), [])
-        if not items:
-            return
+        current = date(self.year, month, day)
+        pad = 0.55 * mm
+        bottom_limit = y + 0.35 * mm
+        top = y + row_h
+        cell_right = x + col_w
 
-        pad = 0.8 * mm
-        # Platz unter Wochentag-Kürzel
-        top_pad = 3.5 * mm if layout.show_weekdays else pad
-        cursor_y = y + row_h - top_pad
-        max_y_bottom = y + pad
-        drawn = 0
+        active: list[tuple[CalendarEvent, int, bool]] = []
+        for event in self.spans:
+            if event.start_date <= current <= event.last_inclusive_date:
+                active.append((event, self.lanes[id(event)], is_bar_day(event, current)))
+        active.sort(key=lambda item: item[1])
 
-        for ce in items:
-            if drawn >= layout.max_events_per_cell:
-                remaining = len(items) - drawn
-                font = self._font("Helvetica-Oblique")
-                size = 5.5
-                c.setFont(font, size)
-                c.setFillColor(_color("#666666"))
-                msg = f"+{remaining} weitere"
-                c.drawString(x + pad, max_y_bottom, msg)
-                break
+        lane_count = max(self.lanes.values(), default=-1) + 1
+        stroke_w, edge, gap = self._lane_metrics(row_h, col_w, lane_count)
 
-            if ce.is_bar_segment:
-                bar_h = layout.bar_height_pt
-                if cursor_y - bar_h < max_y_bottom:
-                    break
-                self._draw_bar_segment(c, ce, x, cursor_y - bar_h, col_w, bar_h, pad)
-                cursor_y -= bar_h + layout.event_line_gap_pt
-                drawn += 1
+        holiday_events = self.holidays.get((month, day), [])
+        show_line = layout.show_weekdays or bool(holiday_events)
+        line_size = max(5.0, layout.day_font_size - 1.5)
+        line_font = self._font("Helvetica")
+
+        cursor = top - 0.25 * mm
+        if show_line:
+            cursor -= line_size + 0.7 * mm
+
+        bar_h = layout.bar_height_pt
+        bars: list[tuple[CalendarEvent, int, float, float, float]] = []
+        stroke_top: dict[int, float] = {}
+        for event, lane, bar in active:
+            if not bar:
+                stroke_top[id(event)] = top
                 continue
+            if cursor - bar_h < bottom_limit:
+                # Kein Platz für den Balken: Strich nur im Rest der Zelle, nicht durch die Zeile darüber.
+                stroke_top[id(event)] = cursor
+                continue
+            stroke_left = self._lane_x(cell_right, lane, stroke_w, edge, gap)
+            left = x + pad
+            width = max(1.0, stroke_left + stroke_w - left)
+            bottom = cursor - bar_h
+            bars.append((event, lane, left, bottom, width))
+            stroke_top[id(event)] = bottom + 0.6
+            cursor -= bar_h + layout.event_line_gap_pt
 
-            ev = ce.event
-            all_day = ev.all_day
-            font_name = self._font(ev.style.resolve_font_name(all_day=all_day))
-            font_size = ev.style.resolve_font_size(all_day=all_day)
-            color = _color(ev.style.resolve_color(all_day=all_day))
-            label = ev.label(self.layout.timezone)
-            max_text_w = col_w - 2 * pad
-            text = _truncate(label, font_name, font_size, max_text_w)
-            if cursor_y - font_size < max_y_bottom:
-                break
-            c.setFont(font_name, font_size)
-            c.setFillColor(color)
-            c.drawString(x + pad, cursor_y - font_size, text)
-            cursor_y -= font_size + layout.event_line_gap_pt
-            drawn += 1
+        for event, lane, _bar in active:
+            sx = self._lane_x(cell_right, lane, stroke_w, edge, gap)
+            top_y = stroke_top.get(id(event), top)
+            height = top_y - y
+            if height <= 0.2 or sx < x or sx + stroke_w > cell_right:
+                continue
+            c.setFillColor(_color(event.style.resolve_bar_color()))
+            c.rect(sx, y, stroke_w, height, fill=1, stroke=0)
 
-    def _draw_bar_segment(
+        full_height_lanes = [
+            lane
+            for event, lane, _bar in active
+            if stroke_top.get(id(event), top) >= top - 0.2
+        ]
+        if show_line:
+            text_left = x + pad
+            max_w = self._content_right(cell_right, full_height_lanes, stroke_w, edge, gap, pad) - text_left
+            baseline = top - 0.3 * mm - line_size
+            weekday = WEEKDAY_SHORT_DE[current.weekday()]
+            self._draw_weekday_line(
+                c,
+                text_left,
+                baseline,
+                max_w,
+                weekday,
+                holiday_events,
+                line_font,
+                line_size,
+            )
+
+        for event, _lane, left, bottom, width in bars:
+            self._draw_horizontal_bar(c, event, left, bottom, width, bar_h, pad)
+
+        text_lanes = [lane for _event, lane, _bar in active]
+        text_left = x + pad
+        max_text_w = self._content_right(cell_right, text_lanes, stroke_w, edge, gap, pad) - text_left
+        self._draw_text_events(
+            c,
+            self.texts.get((month, day), []),
+            text_left,
+            cursor,
+            bottom_limit,
+            max_text_w,
+        )
+
+    def _draw_weekday_line(
         self,
         c: canvas.Canvas,
-        ce: CellEvent,
         x: float,
-        y: float,
-        col_w: float,
+        baseline: float,
+        max_width: float,
+        weekday: str,
+        holidays: list[CalendarEvent],
+        font: str,
+        size: float,
+    ) -> None:
+        if max_width <= 1:
+            return
+        gray = _color("#888888")
+        segments: list[tuple[str, Color]] = [(weekday, gray)]
+        for event in holidays:
+            segments.append((" - ", gray))
+            segments.append((event.summary, _color(event.style.resolve_color(all_day=True))))
+        fitted = _fit_segments(segments, font, size, max_width)
+        cursor = x
+        c.setFont(font, size)
+        for text, color in fitted:
+            c.setFillColor(color)
+            c.drawString(cursor, baseline, text)
+            cursor += pdfmetrics.stringWidth(text, font, size)
+
+    def _draw_horizontal_bar(
+        self,
+        c: canvas.Canvas,
+        event: CalendarEvent,
+        left: float,
+        bottom: float,
+        width: float,
         bar_h: float,
         pad: float,
     ) -> None:
-        ev = ce.event
-        bg = _color(ev.style.resolve_bar_color())
-        fg = _color(ev.style.bar_text_color)
-        font_name = self._font(ev.style.resolve_font_name(all_day=True))
-        font_size = ev.style.resolve_font_size(all_day=True, bar=True)
-
-        # Nahtlose Balken: wenig Padding an Fortsetzungsseiten
-        left = x if ce.bar_continues_prev else x + pad * 0.5
-        right = x + col_w if ce.bar_continues_next else x + col_w - pad * 0.5
-        width = max(0.5, right - left)
-
+        bg = _color(event.style.resolve_bar_color())
+        fg = _color(event.style.bar_text_color)
+        font_name = self._font(event.style.resolve_font_name(all_day=True))
+        font_size = event.style.resolve_font_size(all_day=True, bar=True)
         c.setFillColor(bg)
-        c.roundRect(left, y, width, bar_h, 1.2, fill=1, stroke=0)
+        c.rect(left, bottom, width, bar_h, fill=1, stroke=0)
+        inset = min(pad, width * 0.15)
+        text = _truncate(event.summary, font_name, font_size, max(1.0, width - 2 * inset))
+        if not text:
+            return
+        c.setFillColor(fg)
+        c.setFont(font_name, font_size)
+        c.drawString(left + inset, bottom + (bar_h - font_size) / 2, text)
 
-        # Text nur am ersten Tag des Monatssegments
-        if ce.bar_day_index == 0:
-            c.setFillColor(fg)
+    def _draw_text_events(
+        self,
+        c: canvas.Canvas,
+        items: list[CalendarEvent],
+        left: float,
+        cursor_top: float,
+        bottom_limit: float,
+        max_width: float,
+    ) -> None:
+        if not items or max_width <= 1:
+            return
+        layout = self.layout
+        cursor = cursor_top
+        drawn = 0
+        for event in items:
+            if drawn >= layout.max_events_per_cell:
+                self._draw_more(c, left, bottom_limit, len(items) - drawn)
+                return
+            all_day = event.all_day
+            font_name = self._font(event.style.resolve_font_name(all_day=all_day))
+            font_size = event.style.resolve_font_size(all_day=all_day)
+            if cursor - font_size < bottom_limit:
+                self._draw_more(c, left, bottom_limit, len(items) - drawn)
+                return
+            label = event.label(layout.timezone)
+            text = _truncate(label, font_name, font_size, max_width)
             c.setFont(font_name, font_size)
-            text = _truncate(ev.summary, font_name, font_size, width - pad)
-            c.drawString(left + pad * 0.6, y + (bar_h - font_size) / 2, text)
+            c.setFillColor(_color(event.style.resolve_color(all_day=all_day)))
+            c.drawString(left, cursor - font_size, text)
+            cursor -= font_size + layout.event_line_gap_pt
+            drawn += 1
+
+    def _draw_more(self, c: canvas.Canvas, left: float, baseline: float, remaining: int) -> None:
+        if remaining <= 0:
+            return
+        font = self._font("Helvetica-Oblique")
+        size = 5.5
+        c.setFont(font, size)
+        c.setFillColor(_color("#666666"))
+        c.drawString(left, baseline, f"+{remaining} weitere")
 
 
 def render_year_pdf(

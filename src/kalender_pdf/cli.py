@@ -68,7 +68,10 @@ def main(argv: list[str] | None = None) -> int:
     output = Path(args.output) if args.output else config.output_path
 
     enabled = [s for s in config.sources if s.enabled]
-    print(f"Jahr {config.year} · {len(enabled)} Quelle(n) · A2 {config.layout.orientation}")
+    print(
+        f"Jahr {config.year} · {len(enabled)} Quelle(n) · "
+        f"{config.layout.page_size} {config.layout.orientation}"
+    )
 
     try:
         events = load_all_sources(

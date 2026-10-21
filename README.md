@@ -116,7 +116,8 @@ Wichtige Felder:
 | `output` | Ziel-PDF |
 | `layout.orientation` | `landscape` (empfohlen) oder `portrait` |
 | `layout.timezone` | Anzeige-Zeitzone (Standard `Europe/Berlin`) |
-| `sources[]` | Name, `url` oder `path`, `style` (Farbe, Schrift, `as_bar`, …) |
+| `sources[]` | Name, `url` oder `path`, `holidays`, `style` (Farbe, Schrift, …) |
+| `sources[].holidays` | `true`: eintägige Ganztagstermine in der Wochentagszeile (`Do - Neujahrstag`) |
 
 Weitere Quellen nur in der YAML ergänzen — kein Code nötig.
 
@@ -140,7 +141,7 @@ Die Datei `config/example.yaml` enthält:
 1. KAKI Gottesdienste  
 2. KAKI Kinder- und Jugendarbeit  
 3. KAKI sonstige Veranstaltungen  
-4. VG Ferien und Feiertage (Balken-Stil)  
+4. VG Ferien und Feiertage (`holidays: true`)  
 5. VG Veranstaltungen  
 
 ## Tests
