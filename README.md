@@ -117,7 +117,7 @@ Wichtige Felder:
 | `layout.orientation` | `landscape` (empfohlen) oder `portrait` |
 | `layout.timezone` | Anzeige-Zeitzone (Standard `Europe/Berlin`) |
 | `sources[]` | Name, `url` oder `path`, `holidays`, `style` (Farbe, Schrift, …) |
-| `sources[].holidays` | `true`: eintägige Ganztagstermine in der Wochentagszeile (`Do - Neujahrstag`) |
+| `sources[].holidays` | `true`: eintägige Ganztagstermine in der Wochentagszeile (`Do Neujahrstag - Karfreitag`) |
 
 Weitere Quellen nur in der YAML ergänzen — kein Code nötig.
 

@@ -47,6 +47,10 @@ def _register_fonts() -> dict[str, str]:
         "Regular": "Helvetica",
         "Bold": "Helvetica-Bold",
         "Oblique": "Helvetica-Oblique",
+        "Helvetica": "Helvetica",
+        "Helvetica-Bold": "Helvetica-Bold",
+        "Helvetica-Oblique": "Helvetica-Oblique",
+        "Helvetica-BoldOblique": "Helvetica-BoldOblique",
     }
     candidates = [
         (
@@ -83,7 +87,12 @@ def _register_fonts() -> dict[str, str]:
 
 
 def _resolve_font(name: str, fonts: dict[str, str]) -> str:
-    return fonts.get(name, fonts.get("Regular", name))
+    """Bekannte Namen umsetzen, unbekannte Standardschriften unverändert lassen.
+
+    Ein unbekannter Name darf nicht auf Helvetica (Regular) zurückfallen, sonst
+    gehen ``Helvetica-Bold`` und ``Helvetica-Oblique`` verloren.
+    """
+    return fonts.get(name, name)
 
 
 _PAGE_SIZES = {
@@ -112,9 +121,33 @@ def _days_in_month(year: int, month: int) -> int:
     return calendar.monthrange(year, month)[1]
 
 
+def row_bottom_spans(
+    year: int,
+    day: int,
+    origin_x: float,
+    day_label_w: float,
+    col_w: float,
+) -> list[tuple[float, float]]:
+    """Unterkante von Tag `day`: Tageszahl und nur Monate, in denen der Tag existiert."""
+    spans: list[tuple[float, float]] = []
+    start = origin_x
+    end = origin_x + day_label_w
+    for month in range(1, 13):
+        x = origin_x + day_label_w + (month - 1) * col_w
+        if day <= _days_in_month(year, month):
+            if x <= end + 0.01:
+                end = x + col_w
+            else:
+                spans.append((start, end))
+                start = x
+                end = x + col_w
+    spans.append((start, end))
+    return spans
+
+
 def is_span_event(event: CalendarEvent) -> bool:
-    """Ganztägiger Termin über mehr als einen Tag: Balken und senkrechter Strich."""
-    return event.all_day and event.kind == EventKind.MULTI_DAY
+    """Mehrtägiger Termin: Balken und senkrechter Strich, mit oder ohne Uhrzeit."""
+    return event.last_inclusive_date > event.start_date
 
 
 def is_holiday_event(event: CalendarEvent) -> bool:
@@ -136,10 +169,10 @@ def is_bar_day(event: CalendarEvent, day: date) -> bool:
 
 
 def holiday_line_text(weekday: str, names: list[str]) -> str:
-    """Wochentagszeile: ``Do - Neujahrstag - Zweiter Feiertag``."""
+    """Wochentagszeile: ``Do Neujahrstag - Zweiter Feiertag``."""
     if not names:
         return weekday
-    return " - ".join([weekday, *names])
+    return f"{weekday} {' - '.join(names)}"
 
 
 def _ranges_overlap(a: CalendarEvent, b: CalendarEvent) -> bool:
@@ -332,7 +365,11 @@ class YearCalendarRenderer:
         day_font = self._font("Helvetica")
         grid_line = _color(layout.grid_line_color)
         weekend_bg = _color(layout.weekend_bg_color)
-        empty_bg = _color(layout.empty_day_bg_color)
+        empty_raw = (layout.empty_day_bg_color or "").strip()
+        empty_bg = _color(empty_raw) if empty_raw else None
+        alternate = (layout.alternate_month_bg_color or "").strip()
+        alternating = bool(alternate)
+        alternate_bg = _color(alternate) if alternating else None
 
         for day in range(1, 32):
             row_top = grid_top - header_h - (day - 1) * row_h
@@ -357,34 +394,46 @@ class YearCalendarRenderer:
                 exists = day <= dim
 
                 if not exists:
-                    c.setFillColor(empty_bg)
-                    c.rect(x, row_bottom, col_w, row_h, fill=1, stroke=0)
+                    if empty_bg is not None:
+                        c.setFillColor(empty_bg)
+                        c.rect(x, row_bottom, col_w, row_h, fill=1, stroke=0)
                 else:
                     d = date(self.year, month, day)
+                    if alternating and month % 2 == 0 and alternate_bg is not None:
+                        c.setFillColor(alternate_bg)
+                        c.rect(x, row_bottom, col_w, row_h, fill=1, stroke=0)
                     if d.weekday() >= 5:
                         c.setFillColor(weekend_bg)
                         c.rect(x, row_bottom, col_w, row_h, fill=1, stroke=0)
 
+                if not alternating and exists:
+                    c.setStrokeColor(grid_line)
+                    c.setLineWidth(0.3)
+                    c.rect(x, row_bottom, col_w, row_h, fill=0, stroke=1)
+
+            if not alternating:
                 c.setStrokeColor(grid_line)
                 c.setLineWidth(0.3)
-                c.rect(x, row_bottom, col_w, row_h, fill=0, stroke=1)
+                c.rect(grid_left, row_bottom, day_label_w, row_h, fill=0, stroke=1)
 
-            # Rahmen Tagesnummer
-            c.setStrokeColor(grid_line)
-            c.setLineWidth(0.3)
-            c.rect(grid_left, row_bottom, day_label_w, row_h, fill=0, stroke=1)
-
-        # Äußerer Rahmen Kopfzeile
         c.setStrokeColor(grid_line)
-        c.setLineWidth(0.6)
-        c.rect(
-            grid_left,
-            grid_bottom,
-            grid_right - grid_left,
-            grid_top - grid_bottom,
-            fill=0,
-            stroke=1,
-        )
+        if alternating:
+            # Nur waagerechte Trennung. Senkrechte Linien entfallen, auch an der Tageszahl.
+            # Unter nicht existierenden Tagen (30.02., 31.04.) fehlt die Linie.
+            c.setLineWidth(0.3)
+            c.line(grid_left, grid_top - header_h, grid_right, grid_top - header_h)
+            for day in range(1, 32):
+                y = grid_top - header_h - day * row_h
+                for x0, x1 in row_bottom_spans(self.year, day, grid_left, day_label_w, col_w):
+                    c.line(x0, y, x1, y)
+        else:
+            c.setLineWidth(0.6)
+            c.line(grid_left, grid_top, grid_right, grid_top)
+            c.line(grid_left, grid_bottom, grid_left, grid_top)
+            c.line(grid_right, grid_bottom, grid_right, grid_top)
+            y_bottom = grid_top - header_h - 31 * row_h
+            for x0, x1 in row_bottom_spans(self.year, 31, grid_left, day_label_w, col_w):
+                c.line(x0, y_bottom, x1, y_bottom)
 
         # Striche und Texte über dem Raster, damit der Strich die Tagesgrenze überdeckt.
         for day in range(1, 32):
@@ -427,6 +476,14 @@ class YearCalendarRenderer:
             c.setFillColor(_color("#333333"))
             c.drawString(cursor_x, y, name)
             cursor_x += pdfmetrics.stringWidth(name, font, size) + 4 * mm
+
+    def _event_indent(self, show_weekdays: bool, font: str, size: float, pad: float) -> float:
+        """Einzug, damit „Mo“ frei bleibt und Feiertage wie Termine darunter stehen."""
+        if not show_weekdays:
+            return pad
+        label_w = max(pdfmetrics.stringWidth(name, font, size) for name in WEEKDAY_SHORT_DE)
+        gap = pdfmetrics.stringWidth(" ", font, size)
+        return pad + label_w + gap
 
     def _lane_metrics(
         self, row_h: float, col_w: float, lane_count: int
@@ -493,13 +550,15 @@ class YearCalendarRenderer:
         stroke_w, edge, gap = self._lane_metrics(row_h, col_w, lane_count)
 
         holiday_events = self.holidays.get((month, day), [])
-        show_line = layout.show_weekdays or bool(holiday_events)
+        show_weekday = layout.show_weekdays
         line_size = max(5.0, layout.day_font_size - 1.5)
         line_font = self._font("Helvetica")
+        content_left = x + self._event_indent(show_weekday, line_font, line_size, pad)
 
-        cursor = top - 0.25 * mm
-        if show_line:
-            cursor -= line_size + 0.7 * mm
+        top_inset = 0.25 * mm
+        first_baseline = top - top_inset - line_size
+        # Ohne Feiertag teilen sich Wochentag und erster Termin die oberste Zeile.
+        cursor = first_baseline - 0.45 * mm if holiday_events else top - top_inset
 
         bar_h = layout.bar_height_pt
         bars: list[tuple[CalendarEvent, int, float, float, float]] = []
@@ -513,7 +572,7 @@ class YearCalendarRenderer:
                 stroke_top[id(event)] = cursor
                 continue
             stroke_left = self._lane_x(cell_right, lane, stroke_w, edge, gap)
-            left = x + pad
+            left = content_left
             width = max(1.0, stroke_left + stroke_w - left)
             bottom = cursor - bar_h
             bars.append((event, lane, left, bottom, width))
@@ -534,54 +593,58 @@ class YearCalendarRenderer:
             for event, lane, _bar in active
             if stroke_top.get(id(event), top) >= top - 0.2
         ]
-        if show_line:
-            text_left = x + pad
-            max_w = self._content_right(cell_right, full_height_lanes, stroke_w, edge, gap, pad) - text_left
-            baseline = top - 0.3 * mm - line_size
+        if show_weekday or holiday_events:
             weekday = WEEKDAY_SHORT_DE[current.weekday()]
-            self._draw_weekday_line(
-                c,
-                text_left,
-                baseline,
-                max_w,
-                weekday,
-                holiday_events,
-                line_font,
-                line_size,
-            )
+            if show_weekday:
+                c.setFont(line_font, line_size)
+                c.setFillColor(_color("#888888"))
+                c.drawString(x + pad, first_baseline, weekday)
+            if holiday_events:
+                holiday_right = self._content_right(
+                    cell_right, full_height_lanes, stroke_w, edge, gap, pad
+                )
+                self._draw_holiday_names(
+                    c,
+                    content_left,
+                    first_baseline,
+                    holiday_right - content_left,
+                    holiday_events,
+                    line_font,
+                    line_size,
+                )
 
         for event, _lane, left, bottom, width in bars:
             self._draw_horizontal_bar(c, event, left, bottom, width, bar_h, pad)
 
         text_lanes = [lane for _event, lane, _bar in active]
-        text_left = x + pad
-        max_text_w = self._content_right(cell_right, text_lanes, stroke_w, edge, gap, pad) - text_left
+        text_right = self._content_right(cell_right, text_lanes, stroke_w, edge, gap, pad)
+        max_text_w = text_right - content_left
         self._draw_text_events(
             c,
             self.texts.get((month, day), []),
-            text_left,
+            content_left,
             cursor,
             bottom_limit,
             max_text_w,
         )
 
-    def _draw_weekday_line(
+    def _draw_holiday_names(
         self,
         c: canvas.Canvas,
         x: float,
         baseline: float,
         max_width: float,
-        weekday: str,
         holidays: list[CalendarEvent],
         font: str,
         size: float,
     ) -> None:
-        if max_width <= 1:
+        if max_width <= 1 or not holidays:
             return
         gray = _color("#888888")
-        segments: list[tuple[str, Color]] = [(weekday, gray)]
-        for event in holidays:
-            segments.append((" - ", gray))
+        segments: list[tuple[str, Color]] = []
+        for index, event in enumerate(holidays):
+            if index:
+                segments.append((" - ", gray))
             segments.append((event.summary, _color(event.style.resolve_color(all_day=True))))
         fitted = _fit_segments(segments, font, size, max_width)
         cursor = x
@@ -603,12 +666,17 @@ class YearCalendarRenderer:
     ) -> None:
         bg = _color(event.style.resolve_bar_color())
         fg = _color(event.style.bar_text_color)
-        font_name = self._font(event.style.resolve_font_name(all_day=True))
-        font_size = event.style.resolve_font_size(all_day=True, bar=True)
+        font_name = self._font(event.style.resolve_font_name(all_day=event.all_day))
+        font_size = event.style.resolve_font_size(all_day=event.all_day, bar=True)
         c.setFillColor(bg)
         c.rect(left, bottom, width, bar_h, fill=1, stroke=0)
         inset = min(pad, width * 0.15)
-        text = _truncate(event.summary, font_name, font_size, max(1.0, width - 2 * inset))
+        text = _truncate(
+            event.label(self.layout.timezone),
+            font_name,
+            font_size,
+            max(1.0, width - 2 * inset),
+        )
         if not text:
             return
         c.setFillColor(fg)

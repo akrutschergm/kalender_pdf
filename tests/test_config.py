@@ -46,6 +46,33 @@ sources:
     assert config.layout.page_size == "A3"
 
 
+def test_alternate_month_color_optional(tmp_path: Path):
+    plain = _write(
+        tmp_path,
+        """
+year: 2026
+sources:
+  - name: Ferien
+    path: data/ferien.ics
+""",
+    )
+    assert load_config(plain).layout.alternate_month_bg_color is None
+    assert load_config(plain).layout.empty_day_bg_color is None
+    tinted = tmp_path / "tinted.yaml"
+    tinted.write_text(
+        """
+year: 2026
+layout:
+  alternate_month_bg_color: "#d9e6f2"
+sources:
+  - name: Ferien
+    path: data/ferien.ics
+""",
+        encoding="utf-8",
+    )
+    assert load_config(tinted).layout.alternate_month_bg_color == "#d9e6f2"
+
+
 def test_unknown_page_size_rejected(tmp_path: Path):
     path = _write(
         tmp_path,

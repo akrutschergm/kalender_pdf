@@ -10,8 +10,11 @@ from reportlab.lib.pagesizes import A3, landscape
 from kalender_pdf.config import LayoutConfig
 from kalender_pdf.events import CalendarEvent, EventKind, SourceStyle
 from kalender_pdf.pdf_renderer import (
+    _register_fonts,
+    _resolve_font,
     assign_span_lanes,
     holiday_line_text,
+    row_bottom_spans,
     is_bar_day,
     is_holiday_event,
     is_span_event,
@@ -88,6 +91,17 @@ def test_page_size_a3_landscape(tmp_path: Path):
     assert abs(float(match.group(2)) - expected_h) < 1
 
 
+def test_bold_and_oblique_are_not_regular():
+    fonts = _register_fonts()
+    regular = _resolve_font("Helvetica", fonts)
+    bold = _resolve_font("Helvetica-Bold", fonts)
+    oblique = _resolve_font("Helvetica-Oblique", fonts)
+    assert bold != regular
+    assert oblique != regular
+    assert "Bold" in bold or "bold" in bold
+    assert "Oblique" in oblique or "Italic" in oblique or "italic" in oblique
+
+
 def test_holiday_line_and_span_classification():
     holiday = _event(summary="Neujahr", holiday_calendar=True, kind=EventKind.ALL_DAY)
     vacation = _event(
@@ -101,7 +115,21 @@ def test_holiday_line_and_span_classification():
     assert not is_span_event(holiday)
     assert is_span_event(vacation)
     assert not is_holiday_event(vacation)
-    assert holiday_line_text("Do", ["Neujahr", "Zweiter Feiertag"]) == "Do - Neujahr - Zweiter Feiertag"
+    assert holiday_line_text("Do", ["Neujahr"]) == "Do Neujahr"
+    assert holiday_line_text("Do", ["Neujahr", "Zweiter Feiertag"]) == "Do Neujahr - Zweiter Feiertag"
+
+
+def test_missing_days_have_no_bottom_line():
+    # 2026 ist kein Schaltjahr: Februar endet am 28., April am 30.
+    label, col = 10.0, 20.0
+    feb = row_bottom_spans(2026, 30, 0.0, label, col)
+    assert feb == [(0.0, label + col), (label + 2 * col, label + 12 * col)]
+
+    april = row_bottom_spans(2026, 31, 0.0, label, col)
+    april_x = label + 3 * col
+    jan_x = label
+    assert not any(x0 <= april_x < x1 for x0, x1 in april)
+    assert any(x0 <= jan_x < x1 for x0, x1 in april)
 
 
 def test_bar_day_on_start_and_month_boundary():

@@ -48,7 +48,8 @@ class LayoutConfig:
     header_bg_color: str = "#2c3e50"
     header_text_color: str = "#ffffff"
     weekend_bg_color: str = "#f5f5f5"
-    empty_day_bg_color: str = "#eeeeee"
+    empty_day_bg_color: str | None = None
+    alternate_month_bg_color: str | None = None
     title_font_size: float = 16.0
     month_font_size: float = 9.0
     day_font_size: float = 7.0

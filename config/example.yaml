@@ -4,8 +4,8 @@
 # Begründung: 12 Monatsspalten × 31 Tageszeilen — die Breite ist der Engpass;
 # A2 quer (594×420 mm) gibt den Monatsspalten mehr Platz für lesbare Einträge.
 
-year: 2026
-output: output/kalender-2026.pdf
+year: 2027
+output: output/kalender-2027.pdf
 
 layout:
   page_size: A2
@@ -13,64 +13,91 @@ layout:
   margin_mm: 8
   day_label_width_mm: 7
   header_height_mm: 6
-  title: "Jahreskalender 2026 – KAKI / VG"
+  title: "Jahreskalender 2027 – KAKI / VG"
   timezone: Europe/Berlin
   show_weekdays: true
   max_events_per_cell: 5
   bar_height_pt: 7.0
   header_bg_color: "#1f3a5f"
-  weekend_bg_color: "#f3f6f9"
-  empty_day_bg_color: "#e8e8e8"
+  weekend_bg_color: "#d9e6f2"
+  # Weglassen = kein Hintergrund für Tage, die es nicht gibt (30.02., 31.04., …).
+  #empty_day_bg_color: "#ffffff"
+  # Gerade Monate (Februar, April, …). Weglassen = einheitlicher Hintergrund mit senkrechtem Rahmen.
+  alternate_month_bg_color: "#f3f6f9"
 
 sources:
   # Timed / ganztägige Termine – eigene Farben für Drucklesbarkeit
   - name: "KAKI Gottesdienste"
     url: "https://vg-sh.church.tools/?q=churchcal/ical&security=yGGggm3rkhMKy9Dj3pyvETDe9iM5jDca&id=193"
     style:
-      font_name: Helvetica-Bold
+      font_name: Bold
       font_size: 5.5
-      color: "#0b3d91"
-      all_day_font_size: 5.5
-      all_day_color: "#0b3d91"
+      color: "#3e70ce"
+      all_day_color: "#3e70ce"
 
   - name: "KAKI Kinder- und Jugendarbeit"
     url: "https://vg-sh.church.tools/?q=churchcal/ical&security=mims1ENTX9aq6ayQuO0UgTzn8NBV1XbY&id=199"
     style:
-      font_name: Helvetica-Bold
+      font_name: Bold
       font_size: 5.5
-      color: "#0a7a3e"
-      all_day_color: "#0a7a3e"
+      color: "#16a765"
+      all_day_color: "#16a765"
 
   - name: "KAKI sonstige Veranstaltungen"
     url: "https://vg-sh.church.tools/?q=churchcal/ical&security=rkKPocYsVSvjrNABbbplTSx8jxEspQmU&id=196"
     style:
-      font_name: Helvetica-Bold
+      font_name: Bold
       font_size: 5.5
-      color: "#8a4b08"
-      all_day_color: "#8a4b08"
+      color: "#a47ae2"
+      all_day_color: "#a47ae2"
+
+  - name: "KAKI Vorstand"
+    url: "https://vg-sh.church.tools/?q=churchcal/ical&security=YqWxP8WtvIvt9q7FwoxyCitMFEO6xyVE&id=205"
+    style:
+      font_name: Bold
+      font_size: 5.5
+      color: "#9fc6e7"
+      all_day_color: "#9fc6e7"
+
+  - name: "KAKI Chor 82"
+    url: "https://vg-sh.church.tools/?q=churchcal/ical&security=kB2eIKpvg1UQmaqTLlDmPpKymvVVW980&id=321"
+    enabled: false
+    style:
+      font_name: Bold
+      font_size: 5.5
+      color: "#9fc6e7"
+      all_day_color: "#9fc6e7"
 
   # Feiertage in der Wochentagszeile, mehrtägige Ferien als Balken und Strich
   - name: "VG Ferien und Feiertage"
     url: "https://vg-sh.church.tools/?q=churchcal/ical&security=gLf1lXx2sGcke8hCZPaPEWfaT3JwhfZn&id=34"
     holidays: true
     style:
-      font_name: Helvetica-Oblique
+      font_name: Oblique
       font_size: 5.5
       color: "#b8b8b8"
-      all_day_font_name: Helvetica-Oblique
+      all_day_font_name: Oblique
       all_day_font_size: 5.5
       all_day_color: "#b8b8b8"
       bar_color: "#b8b8b8"
-      bar_text_color: "#000000"
+      bar_text_color: "#ffffff"
       bar_font_size: 5.5
 
   - name: "VG Veranstaltungen"
     url: "https://vg-sh.church.tools/?q=churchcal/ical&security=4oYZByr6ImioJp2vXf5IkadVYWEU3etp&id=263"
     style:
-      font_name: Helvetica
+      font_name: Regular
       font_size: 5.5
       color: "#a31d2c"
       all_day_color: "#a31d2c"
+
+  - name: "EC Veranstaltungen"
+    url: "https://vg-sh.church.tools/?q=churchcal/ical&security=mQRqqvEMJnGCZijcYpkCDqTBhCvPyucP&id=308"
+    style:
+      font_name: Regular
+      font_size: 5.5
+      color: "#7bd148"
+      all_day_color: "#7bd148"
 
 # Weitere Quellen: Block kopieren, name/url (oder path) und style anpassen.
 # Lokale Datei statt URL:
