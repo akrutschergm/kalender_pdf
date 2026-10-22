@@ -5,7 +5,7 @@ from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from reportlab.lib.pagesizes import A3, landscape
+from reportlab.lib.pagesizes import A3, A4, landscape
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.pdfmetrics import stringWidth
 
@@ -22,6 +22,9 @@ from kalender_pdf.pdf_renderer import (
     wrap_tracked,
     bar_block_height,
     bar_text_baseline,
+    format_page_label,
+    month_groups,
+    pack_legend_lines,
     format_generated_at,
     holiday_line_text,
     row_bottom_spans,
@@ -90,6 +93,68 @@ def test_render_minimal_pdf(tmp_path: Path):
     assert path.is_file()
     assert path.stat().st_size > 1000
     assert path.read_bytes()[:4] == b"%PDF"
+
+
+def test_months_per_page_splits_quarters(tmp_path: Path):
+    assert month_groups(3) == [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]]
+    assert month_groups(12) == [list(range(1, 13))]
+    assert format_page_label(1, 4) == "Seite 1 / 4"
+
+    out = tmp_path / "quarters.pdf"
+    render_year_pdf(
+        2026,
+        [_event(summary="Neujahr", start=date(2026, 1, 1), end=date(2026, 1, 2))],
+        out,
+        layout=LayoutConfig(months_per_page=3, page_size="A4", orientation="landscape"),
+    )
+    data = out.read_bytes()
+    expected_w, expected_h = landscape(A4)
+    boxes = re.findall(rb"MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*\]", data)
+    assert len(boxes) == 4
+    for width, height in boxes:
+        assert abs(float(width) - expected_w) < 1
+        assert abs(float(height) - expected_h) < 1
+    text = _pdf_text(data)
+    assert text.count("Januar") == 1
+    assert text.count("April") == 1
+    assert text.count("Seite 1 / 4") == 1
+    assert text.count("Seite 4 / 4") == 1
+    assert "Seite 1 / 4" in text.split("April")[0]
+
+    single = tmp_path / "year.pdf"
+    render_year_pdf(2026, [], single, layout=LayoutConfig())
+    assert "Seite " not in _pdf_text(single.read_bytes())
+
+
+def _pdf_text(data: bytes) -> str:
+    import base64
+    import zlib
+
+    chunks: list[str] = []
+    for match in re.finditer(rb"stream\n(.*?)endstream", data, re.S):
+        raw = match.group(1).strip()
+        if raw.endswith(b"~>"):
+            raw = base64.a85decode(raw, adobe=True)
+        try:
+            raw = zlib.decompress(raw)
+        except zlib.error:
+            pass
+        chunks.append(raw.decode("latin1", errors="ignore"))
+    return "".join(chunks)
+
+
+def test_legend_wraps_items_and_stamp():
+    lines, stamp_line = pack_legend_lines([10, 10, 10], 8, 25, 4, 4)
+    assert lines == [[0, 1], [2]]
+    assert stamp_line == 1
+
+    wrapped, stamp_line = pack_legend_lines([20, 20], 8, 25, 4, 4)
+    assert wrapped == [[0], [1]]
+    assert stamp_line == 2
+
+    empty, stamp_line = pack_legend_lines([], 12, 40, 4, 4)
+    assert empty == []
+    assert stamp_line == 0
 
 
 def test_page_size_a3_landscape(tmp_path: Path):
@@ -241,6 +306,9 @@ def test_missing_days_have_no_bottom_line():
     label, col = 10.0, 20.0
     feb = row_bottom_spans(2026, 30, 0.0, label, col)
     assert feb == [(0.0, label + col), (label + 2 * col, label + 12 * col)]
+
+    quarter = row_bottom_spans(2026, 31, 0.0, label, col, [4, 5, 6])
+    assert quarter == [(0.0, label), (label + col, label + 2 * col)]
 
     april = row_bottom_spans(2026, 31, 0.0, label, col)
     april_x = label + 3 * col

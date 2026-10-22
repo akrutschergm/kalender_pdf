@@ -149,6 +149,35 @@ sources:
     assert defaults.sources[0].wrap_text is True
 
 
+def test_months_per_page(tmp_path: Path):
+    path = _write(
+        tmp_path,
+        """
+year: 2026
+layout:
+  months_per_page: 3
+sources:
+  - name: Ferien
+    path: data/ferien.ics
+""",
+    )
+    assert load_config(path).layout.months_per_page == 3
+    assert load_config(_write(tmp_path, "year: 2026\nsources:\n  - name: Ferien\n    path: x.ics\n")).layout.months_per_page == 12
+    rejected = _write(
+        tmp_path,
+        """
+year: 2026
+layout:
+  months_per_page: 5
+sources:
+  - name: Ferien
+    path: data/ferien.ics
+""",
+    )
+    with pytest.raises(ConfigError, match="months_per_page"):
+        load_config(rejected)
+
+
 def test_unknown_page_size_rejected(tmp_path: Path):
     path = _write(
         tmp_path,

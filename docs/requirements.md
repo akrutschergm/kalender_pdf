@@ -8,7 +8,9 @@ Ein ausführbares Python-Tool, das aus mehreren iCalendar-Quellen einen druckfer
 
 ## Kalenderlayout
 
-- Ein Kalenderjahr pro PDF-Seite.
+- `layout.months_per_page` legt fest, wie viele Monate auf einer Seite stehen: 1, 2, 3, 4, 6 oder 12. Standard ist 12, also ein Jahr auf einer Seite. Die Monate eines Jahres folgen in dieser Schrittweite aufeinander und nutzen jeweils die ganze Seitenbreite. Bei 3 sind das Januar–März, April–Juni, Juli–September und Oktober–Dezember.
+- Titel, Legende und Erstellungsdatum stehen auf jeder Seite. Die Legende bricht um, wenn sie breiter als die Seite ist. Farbfeld und Bezeichnung bleiben zusammen. Passt das Erstellungsdatum nicht mehr in die letzte Legendenzeile, beginnt es rechtsbündig auf einer eigenen Zeile.
+- Hat das PDF mehrere Seiten, steht in der Fußzeile die Seitennummer, zum Beispiel `Seite 1 / 4`.
 - `layout.page_size` wählt das Seitenformat: A0, A1, A2, A3, A4, A5 oder A6. Standard ist A2. Die Ausrichtung ist `landscape` oder `portrait`.
 - Die Monate stehen nebeneinander, die Tage 1 bis 31 untereinander.
 - Tage, die es in einem Monat nicht gibt (zum Beispiel der 30. Februar oder der 31. April), bleiben leer. Unter diesen Tagen wird kein unterer Rahmen gezeichnet; die Spalte endet mit dem letzten existierenden Tag.
@@ -17,7 +19,7 @@ Ein ausführbares Python-Tool, das aus mehreren iCalendar-Quellen einen druckfer
 - Ist `alternate_month_bg_color` gesetzt, entfallen die senkrechten Linien, auch an der Spalte mit den Tageszahlen. Es bleiben die waagerechten Trennlinien.
 - Ohne diese Farbe bleibt der einheitliche Hintergrund mit senkrechtem Raster.
 - `day_font_size` setzt die Schriftgröße der Tageszahlen, `weekday_font_size` die der Wochentagskürzel in der Zelle. Die Kürzel stehen links und sind in der Zeile vertikal zentriert, wie die Tageszahlen. Feiertagsnamen nutzen `all_day_font_size` ihrer Quelle, sonst `font_size`.
-- In der Zeile der Legende steht rechtsbündig Datum und Uhrzeit der Erstellung, zum Beispiel `Stand: 21.10.2026 12:52`. Die Zeit folgt `layout.timezone`.
+- Rechts in der Legende steht Datum und Uhrzeit der Erstellung, zum Beispiel `Stand: 21.10.2026 12:52`. Die Zeit folgt `layout.timezone`. Die Ausrichtung bleibt rechts, auch wenn das Datum auf eine eigene Zeile rutscht.
 - Das Layout soll für den Ausdruck gut lesbar sein und die Seitenfläche sinnvoll nutzen.
 
 ## iCalendar-Quellen und Darstellung

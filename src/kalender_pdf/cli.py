@@ -70,7 +70,8 @@ def main(argv: list[str] | None = None) -> int:
     enabled = [s for s in config.sources if s.enabled]
     print(
         f"Jahr {config.year} · {len(enabled)} Quelle(n) · "
-        f"{config.layout.page_size} {config.layout.orientation}"
+        f"{config.layout.page_size} {config.layout.orientation} · "
+        f"{config.layout.months_per_page} Monate/Seite"
     )
 
     try:

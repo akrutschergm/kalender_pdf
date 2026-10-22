@@ -10,6 +10,8 @@ output: output/kalender-2027.pdf
 layout:
   page_size: A3
   orientation: landscape
+  # Monate je Seite: 1, 2, 3, 4, 6 oder 12 (Standard, das ganze Jahr auf einer Seite).
+  # months_per_page: 3
   margin_mm: 8
   day_label_width_mm: 7
   header_height_mm: 6

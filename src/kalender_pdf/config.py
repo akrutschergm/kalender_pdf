@@ -60,6 +60,7 @@ class LayoutConfig:
     max_event_lines: int = 3
     bar_height_pt: float = 8.0
     event_line_gap_pt: float = 1.0
+    months_per_page: int = 12
 
 
 @dataclass
@@ -101,6 +102,7 @@ def _parse_style(raw: dict[str, Any] | None) -> SourceStyle:
 
 
 _PAGE_SIZES = {"A0", "A1", "A2", "A3", "A4", "A5", "A6"}
+_MONTHS_PER_PAGE = {1, 2, 3, 4, 6, 12}
 
 
 def _parse_layout(raw: dict[str, Any] | None) -> LayoutConfig:
@@ -131,6 +133,11 @@ def _parse_layout(raw: dict[str, Any] | None) -> LayoutConfig:
         if max_events < 1:
             raise ConfigError("layout.max_events_per_cell muss mindestens 1 sein")
         raw["max_events_per_cell"] = max_events
+    if "months_per_page" in raw:
+        months = raw["months_per_page"]
+        if isinstance(months, bool) or not isinstance(months, int) or months not in _MONTHS_PER_PAGE:
+            allowed = ", ".join(str(value) for value in sorted(_MONTHS_PER_PAGE))
+            raise ConfigError(f"layout.months_per_page muss eine der Angaben {allowed} sein")
     known = {f.name for f in LayoutConfig.__dataclass_fields__.values()}  # type: ignore[attr-defined]
     unknown = set(raw) - known
     if unknown:

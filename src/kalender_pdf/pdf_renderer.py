@@ -129,13 +129,15 @@ def row_bottom_spans(
     origin_x: float,
     day_label_w: float,
     col_w: float,
+    months: list[int] | None = None,
 ) -> list[tuple[float, float]]:
     """Unterkante von Tag `day`: Tageszahl und nur Monate, in denen der Tag existiert."""
+    shown = months if months is not None else list(range(1, 13))
     spans: list[tuple[float, float]] = []
     start = origin_x
     end = origin_x + day_label_w
-    for month in range(1, 13):
-        x = origin_x + day_label_w + (month - 1) * col_w
+    for index, month in enumerate(shown):
+        x = origin_x + day_label_w + index * col_w
         if day <= _days_in_month(year, month):
             if x <= end + 0.01:
                 end = x + col_w
@@ -145,6 +147,59 @@ def row_bottom_spans(
                 end = x + col_w
     spans.append((start, end))
     return spans
+
+
+def month_groups(months_per_page: int) -> list[list[int]]:
+    """Aufeinanderfolgende Monate je Seite. 3 ergibt Januar–März, April–Juni, …"""
+    if months_per_page not in {1, 2, 3, 4, 6, 12}:
+        raise ValueError(f"months_per_page muss 1, 2, 3, 4, 6 oder 12 sein, nicht {months_per_page}")
+    return [
+        list(range(start, start + months_per_page))
+        for start in range(1, 13, months_per_page)
+    ]
+
+
+def pack_legend_lines(
+    item_widths: list[float],
+    stamp_width: float,
+    content_width: float,
+    item_gap: float,
+    stamp_gap: float,
+) -> tuple[list[list[int]], int]:
+    """Legendenzeilen und die Zeile des rechtsbündigen Erstellungsdatums.
+
+    Jeder Eintrag bleibt zusammen. Das Datum teilt die letzte Zeile, wenn daneben
+    Platz ist, sonst steht es rechts auf der folgenden Zeile. Die Zeilennummer
+    ist 0-basiert. Ohne Einträge ist sie 0.
+    """
+    lines: list[list[int]] = []
+    current: list[int] = []
+    used = 0.0
+    for index, width in enumerate(item_widths):
+        extra = width if not current else item_gap + width
+        if current and used + extra > content_width + 0.01:
+            lines.append(current)
+            current = [index]
+            used = width
+        else:
+            current.append(index)
+            used += extra
+    if current:
+        lines.append(current)
+    if not lines:
+        return [], 0
+
+    def line_width(indices: list[int]) -> float:
+        return sum(item_widths[index] for index in indices) + item_gap * (len(indices) - 1)
+
+    if line_width(lines[-1]) + stamp_gap + stamp_width <= content_width + 0.01:
+        return lines, len(lines) - 1
+    return lines, len(lines)
+
+
+def format_page_label(page: int, total: int) -> str:
+    """Fußzeile, z. B. ``Seite 1 / 4``."""
+    return f"Seite {page} / {total}"
 
 
 def is_span_event(event: CalendarEvent) -> bool:
@@ -505,6 +560,12 @@ def _index_events(
 _TOP_INSET = 0.25 * mm
 _BOTTOM_PAD = 0.35 * mm
 _AFTER_HOLIDAY = 0.45 * mm
+_LEGEND_SIZE = 6.5
+_LEGEND_SWATCH = 2.5 * mm
+_LEGEND_SWATCH_GAP = 1 * mm
+_LEGEND_ITEM_GAP = 4 * mm
+_LEGEND_STAMP_GAP = 4 * mm
+_LEGEND_LINE_STEP = 3.8 * mm
 
 
 @dataclass
@@ -550,14 +611,29 @@ class YearCalendarRenderer:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         page_w, page_h = _page_size(self.layout)
         c = canvas.Canvas(str(output_path), pagesize=(page_w, page_h))
-        self._draw_page(c, page_w, page_h)
+        groups = month_groups(self.layout.months_per_page)
+        stamp = format_generated_at(datetime.now(ZoneInfo(self.layout.timezone)))
+        for index, months in enumerate(groups, start=1):
+            if index > 1:
+                c.showPage()
+            c.setPageSize((page_w, page_h))
+            self._draw_page(c, page_w, page_h, months, index, len(groups), stamp)
         c.save()
         return output_path
 
     def _font(self, name: str) -> str:
         return _resolve_font(name, self.fonts)
 
-    def _draw_page(self, c: canvas.Canvas, page_w: float, page_h: float) -> None:
+    def _draw_page(
+        self,
+        c: canvas.Canvas,
+        page_w: float,
+        page_h: float,
+        months: list[int],
+        page_number: int,
+        page_count: int,
+        stamp: str,
+    ) -> None:
         layout = self.layout
         margin = layout.margin_mm * mm
         day_label_w = layout.day_label_width_mm * mm
@@ -569,27 +645,18 @@ class YearCalendarRenderer:
         c.setFillColor(_color("#1a1a1a"))
         c.drawString(margin, page_h - margin - layout.title_font_size, title)
 
-        # Legende der Quellen, rechts daneben der Erstellungszeitpunkt.
-        legend_y = page_h - margin - layout.title_font_size - 4 * mm
         legend_font = self._font("Helvetica")
-        legend_size = 6.5
-        stamp = format_generated_at(datetime.now(ZoneInfo(layout.timezone)))
-        stamp_w = pdfmetrics.stringWidth(stamp, legend_font, legend_size)
-        legend_gap = 4 * mm
-        legend_width = max(0.0, page_w - 2 * margin - stamp_w - legend_gap)
-        self._draw_legend(c, margin, legend_y, legend_width)
-        c.setFillColor(_color("#333333"))
-        c.setFont(legend_font, legend_size)
-        c.drawRightString(page_w - margin, legend_y, stamp)
-
-        grid_top = legend_y - 4 * mm
+        content_width = max(1.0, page_w - 2 * margin)
+        legend_y = page_h - margin - layout.title_font_size - 4 * mm
+        legend_lines = self._draw_legend(c, margin, legend_y, content_width, stamp, legend_font)
+        grid_top = legend_y - (legend_lines - 1) * _LEGEND_LINE_STEP - 4 * mm
         grid_bottom = margin
         grid_left = margin
         grid_right = page_w - margin
 
         usable_w = grid_right - grid_left - day_label_w
         usable_h = grid_top - grid_bottom - header_h
-        col_w = usable_w / 12
+        col_w = usable_w / len(months)
         ref_row_h = usable_h / 31
         lane_count = max(self.lanes.values(), default=-1) + 1
         stroke_w, stroke_edge, stroke_gap = self._lane_metrics(ref_row_h, col_w, lane_count)
@@ -597,7 +664,7 @@ class YearCalendarRenderer:
         self._stroke_w = stroke_w
         self._stroke_edge = stroke_edge
         self._stroke_gap = stroke_gap
-        row_heights = self._allocated_row_heights(usable_h)
+        row_heights = self._allocated_row_heights(usable_h, months)
         if row_heights:
             row_heights[-1] += usable_h - sum(row_heights)
         row_tops: list[float] = []
@@ -612,8 +679,8 @@ class YearCalendarRenderer:
         header_bg = _color(layout.header_bg_color)
         header_fg = _color(layout.header_text_color)
         month_font = self._font("Helvetica-Bold")
-        for month in range(1, 13):
-            x = grid_left + day_label_w + (month - 1) * col_w
+        for index, month in enumerate(months):
+            x = grid_left + day_label_w + index * col_w
             y = grid_top - header_h
             c.setFillColor(header_bg)
             c.rect(x, y, col_w, header_h, fill=1, stroke=0)
@@ -658,8 +725,8 @@ class YearCalendarRenderer:
                 day_label,
             )
 
-            for month in range(1, 13):
-                x = grid_left + day_label_w + (month - 1) * col_w
+            for index, month in enumerate(months):
+                x = grid_left + day_label_w + index * col_w
                 dim = _days_in_month(self.year, month)
                 exists = day <= dim
 
@@ -694,7 +761,9 @@ class YearCalendarRenderer:
             c.line(grid_left, grid_top - header_h, grid_right, grid_top - header_h)
             for day in range(1, 32):
                 y = row_bottoms[day - 1]
-                for x0, x1 in row_bottom_spans(self.year, day, grid_left, day_label_w, col_w):
+                for x0, x1 in row_bottom_spans(
+                    self.year, day, grid_left, day_label_w, col_w, months
+                ):
                     c.line(x0, y, x1, y)
         else:
             c.setLineWidth(0.6)
@@ -702,17 +771,19 @@ class YearCalendarRenderer:
             c.line(grid_left, grid_bottom, grid_left, grid_top)
             c.line(grid_right, grid_bottom, grid_right, grid_top)
             y_bottom = row_bottoms[30]
-            for x0, x1 in row_bottom_spans(self.year, 31, grid_left, day_label_w, col_w):
+            for x0, x1 in row_bottom_spans(
+                self.year, 31, grid_left, day_label_w, col_w, months
+            ):
                 c.line(x0, y_bottom, x1, y_bottom)
 
         # Striche und Texte über dem Raster, damit der Strich die Tagesgrenze überdeckt.
         for day in range(1, 32):
             row_h = row_heights[day - 1]
             row_bottom = row_bottoms[day - 1]
-            for month in range(1, 13):
+            for index, month in enumerate(months):
                 if day > _days_in_month(self.year, month):
                     continue
-                x = grid_left + day_label_w + (month - 1) * col_w
+                x = grid_left + day_label_w + index * col_w
                 self._draw_cell_contents(
                     c,
                     month,
@@ -723,29 +794,84 @@ class YearCalendarRenderer:
                     row_h,
                 )
 
-    def _draw_legend(
-        self, c: canvas.Canvas, x: float, y: float, max_width: float
-    ) -> None:
-        # Einzigartige Quellen aus Events
+        if page_count > 1:
+            self._draw_footer(c, page_w, margin, page_number, page_count)
+
+    def _legend_entries(self) -> list[tuple[str, str]]:
         seen: dict[str, str] = {}
         for ev in self.events:
             if ev.source_name not in seen:
                 seen[ev.source_name] = ev.style.resolve_color(all_day=False)
+        return list(seen.items())
 
-        font = self._font("Helvetica")
-        size = 6.5
+    def _draw_legend(
+        self,
+        c: canvas.Canvas,
+        x: float,
+        y: float,
+        content_width: float,
+        stamp: str,
+        font: str,
+    ) -> int:
+        """Legende und Erstellungsdatum. Liefert die Anzahl belegter Zeilen."""
+        entries = self._legend_entries()
+        size = _LEGEND_SIZE
+        widths = [
+            _LEGEND_SWATCH
+            + _LEGEND_SWATCH_GAP
+            + pdfmetrics.stringWidth(name, font, size)
+            for name, _color in entries
+        ]
+        stamp_w = pdfmetrics.stringWidth(stamp, font, size)
+        lines, stamp_line = pack_legend_lines(
+            widths,
+            stamp_w,
+            content_width,
+            _LEGEND_ITEM_GAP,
+            _LEGEND_STAMP_GAP,
+        )
+        for line_index, indices in enumerate(lines):
+            baseline = y - line_index * _LEGEND_LINE_STEP
+            cursor_x = x
+            for position, item_index in enumerate(indices):
+                if position:
+                    cursor_x += _LEGEND_ITEM_GAP
+                name, color = entries[item_index]
+                c.setFillColor(_color(color))
+                c.rect(
+                    cursor_x,
+                    baseline - 0.5 * mm,
+                    _LEGEND_SWATCH,
+                    _LEGEND_SWATCH,
+                    fill=1,
+                    stroke=0,
+                )
+                cursor_x += _LEGEND_SWATCH + _LEGEND_SWATCH_GAP
+                c.setFillColor(_color("#333333"))
+                c.setFont(font, size)
+                c.drawString(cursor_x, baseline, name)
+                cursor_x += pdfmetrics.stringWidth(name, font, size)
+        c.setFillColor(_color("#333333"))
         c.setFont(font, size)
-        cursor_x = x
-        for name, color in seen.items():
-            swatch = 2.5 * mm
-            if cursor_x + swatch + 2 * mm + pdfmetrics.stringWidth(name, font, size) > x + max_width:
-                break
-            c.setFillColor(_color(color))
-            c.rect(cursor_x, y - 0.5 * mm, swatch, swatch, fill=1, stroke=0)
-            cursor_x += swatch + 1 * mm
-            c.setFillColor(_color("#333333"))
-            c.drawString(cursor_x, y, name)
-            cursor_x += pdfmetrics.stringWidth(name, font, size) + 4 * mm
+        c.drawRightString(x + content_width, y - stamp_line * _LEGEND_LINE_STEP, stamp)
+        return max(len(lines), stamp_line + 1)
+
+    def _draw_footer(
+        self,
+        c: canvas.Canvas,
+        page_w: float,
+        margin: float,
+        page_number: int,
+        page_count: int,
+    ) -> None:
+        size = 8.0
+        font = self._font("Helvetica")
+        baseline = margin - size - 1.5 * mm
+        if baseline < 1.5 * mm:
+            baseline = max(1.0 * mm, margin * 0.35)
+        c.setFillColor(_color("#333333"))
+        c.setFont(font, size)
+        c.drawCentredString(page_w / 2, baseline, format_page_label(page_number, page_count))
 
     def _event_indent(self, show_weekdays: bool, font: str, size: float, pad: float) -> float:
         """Einzug, damit „Mo“ frei bleibt und Feiertage wie Termine darunter stehen."""
@@ -800,12 +926,12 @@ class YearCalendarRenderer:
         inset = min(pad, width * 0.15)
         return max(1.0, width - 2 * inset)
 
-    def _allocated_row_heights(self, usable_h: float) -> list[float]:
+    def _allocated_row_heights(self, usable_h: float, months: list[int]) -> list[float]:
         floor = max(self.layout.day_font_size, self.layout.weekday_font_size) + 0.6 * mm
         needed: list[float] = []
         for day in range(1, 32):
             cell_need = floor
-            for month in range(1, 13):
+            for month in months:
                 if day > _days_in_month(self.year, month):
                     continue
                 cell_need = max(cell_need, self._plan_cell(month, day).needed)

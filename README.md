@@ -115,6 +115,7 @@ Wichtige Felder:
 | `year` | Kalenderjahr |
 | `output` | Ziel-PDF |
 | `layout.orientation` | `landscape` (empfohlen) oder `portrait` |
+| `layout.months_per_page` | Monate je Seite: 1, 2, 3, 4, 6 oder 12 (Standard). Jede Seite nutzt die volle Breite; Titel, Legende und `Stand` wiederholen sich. Ab zwei Seiten steht unten `Seite 1 / 4` |
 | `layout.timezone` | Anzeige-Zeitzone (Standard `Europe/Berlin`), auch für `Stand: …` in der Legende |
 | `layout.day_font_size` | Schriftgröße der Tageszahlen |
 | `layout.weekday_font_size` | Schriftgröße der Wochentagskürzel |
