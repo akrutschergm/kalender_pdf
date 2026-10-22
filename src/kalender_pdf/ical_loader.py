@@ -177,6 +177,8 @@ def component_to_event(
         timezone=str(default_tz),
         location=location,
         description=description,
+        holiday_calendar=source.holidays,
+        wrap_text=source.wrap_text,
     )
 
 
@@ -259,6 +261,8 @@ def expand_source_events(
             continue
         seen.add(key)
         unique.append(ev)
+    for index, ev in enumerate(unique):
+        ev.event_index = index
     return unique
 
 
@@ -271,7 +275,7 @@ def load_all_sources(
 ) -> list[CalendarEvent]:
     """Lädt alle aktivierten Quellen. Bei Fehler: klare Exception, Abbruch."""
     all_events: list[CalendarEvent] = []
-    for source in sources:
+    for source_index, source in enumerate(sources):
         if not source.enabled:
             continue
         print(f"  Lade: {source.name} …")
@@ -281,6 +285,8 @@ def load_all_sources(
             timezone_name=timezone_name,
             timeout=timeout,
         )
+        for ev in events:
+            ev.source_index = source_index
         print(f"    → {len(events)} Termin(e)")
         all_events.extend(events)
     return all_events

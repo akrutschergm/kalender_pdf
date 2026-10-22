@@ -4,6 +4,7 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from kalender_pdf.events import CalendarEvent, EventKind, SourceStyle, classify_kind
+from kalender_pdf.pdf_renderer import is_span_event
 
 
 def _event(**kwargs) -> CalendarEvent:
@@ -11,7 +12,7 @@ def _event(**kwargs) -> CalendarEvent:
         uid="x",
         summary="Test",
         source_name="S",
-        style=SourceStyle(as_bar=True),
+        style=SourceStyle(),
         start=date(2026, 1, 1),
         end=date(2026, 1, 2),
         all_day=True,
@@ -57,3 +58,30 @@ def test_timed_label():
         summary="Gottesdienst",
     )
     assert ev.label("Europe/Berlin") == "10:30 Gottesdienst"
+
+
+def test_timed_multi_day_is_span_with_start_time():
+    tz = ZoneInfo("Europe/Berlin")
+    start = datetime(2026, 5, 1, 18, 0, tzinfo=tz)
+    end = datetime(2026, 5, 3, 12, 0, tzinfo=tz)
+    assert classify_kind(start, end, False) == EventKind.TIMED
+    ev = _event(
+        start=start,
+        end=end,
+        all_day=False,
+        kind=EventKind.TIMED,
+        summary="Freizeit",
+    )
+    assert is_span_event(ev)
+    assert ev.label("Europe/Berlin") == "18:00 Freizeit"
+
+
+def test_same_day_timed_is_not_span():
+    tz = ZoneInfo("Europe/Berlin")
+    ev = _event(
+        start=datetime(2026, 5, 1, 10, 0, tzinfo=tz),
+        end=datetime(2026, 5, 1, 12, 0, tzinfo=tz),
+        all_day=False,
+        kind=EventKind.TIMED,
+    )
+    assert not is_span_event(ev)

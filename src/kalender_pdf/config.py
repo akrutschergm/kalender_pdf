@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 import yaml
 
@@ -21,6 +22,8 @@ class SourceConfig:
     url: str | None = None
     path: str | None = None
     enabled: bool = True
+    holidays: bool = False
+    wrap_text: bool = True
     style: SourceStyle = field(default_factory=SourceStyle)
 
     def __post_init__(self) -> None:
@@ -47,11 +50,14 @@ class LayoutConfig:
     header_bg_color: str = "#2c3e50"
     header_text_color: str = "#ffffff"
     weekend_bg_color: str = "#f5f5f5"
-    empty_day_bg_color: str = "#eeeeee"
+    empty_day_bg_color: str | None = None
+    alternate_month_bg_color: str | None = None
     title_font_size: float = 16.0
     month_font_size: float = 9.0
     day_font_size: float = 7.0
+    weekday_font_size: float = 5.5
     max_events_per_cell: int = 6
+    max_event_lines: int = 3
     bar_height_pt: float = 8.0
     event_line_gap_pt: float = 1.0
 
@@ -87,8 +93,6 @@ def _parse_style(raw: dict[str, Any] | None) -> SourceStyle:
         "bar_color",
         "bar_text_color",
         "bar_font_size",
-        "show_time",
-        "as_bar",
     }
     unknown = set(raw) - known
     if unknown:
@@ -96,12 +100,37 @@ def _parse_style(raw: dict[str, Any] | None) -> SourceStyle:
     return SourceStyle(**raw)
 
 
+_PAGE_SIZES = {"A0", "A1", "A2", "A3", "A4", "A5", "A6"}
+
+
 def _parse_layout(raw: dict[str, Any] | None) -> LayoutConfig:
     if not raw:
         return LayoutConfig()
+    raw = dict(raw)
     orientation = raw.get("orientation", "landscape")
     if orientation not in {"landscape", "portrait"}:
         raise ConfigError("layout.orientation muss 'landscape' oder 'portrait' sein")
+    page_size = str(raw.get("page_size", "A2")).upper()
+    if page_size not in _PAGE_SIZES:
+        known = ", ".join(sorted(_PAGE_SIZES))
+        raise ConfigError(f"layout.page_size muss eine der Größen {known} sein")
+    raw["page_size"] = page_size
+    if "max_event_lines" in raw:
+        try:
+            max_lines = int(raw["max_event_lines"])
+        except (TypeError, ValueError) as exc:
+            raise ConfigError("layout.max_event_lines muss eine ganze Zahl sein") from exc
+        if max_lines < 1:
+            raise ConfigError("layout.max_event_lines muss mindestens 1 sein")
+        raw["max_event_lines"] = max_lines
+    if "max_events_per_cell" in raw:
+        try:
+            max_events = int(raw["max_events_per_cell"])
+        except (TypeError, ValueError) as exc:
+            raise ConfigError("layout.max_events_per_cell muss eine ganze Zahl sein") from exc
+        if max_events < 1:
+            raise ConfigError("layout.max_events_per_cell muss mindestens 1 sein")
+        raw["max_events_per_cell"] = max_events
     known = {f.name for f in LayoutConfig.__dataclass_fields__.values()}  # type: ignore[attr-defined]
     unknown = set(raw) - known
     if unknown:
@@ -109,15 +138,43 @@ def _parse_layout(raw: dict[str, Any] | None) -> LayoutConfig:
     return LayoutConfig(**raw)
 
 
-def _parse_source(raw: dict[str, Any], index: int) -> SourceConfig:
+def _file_url_path(url: str, config_dir: Path) -> Path:
+    """``file://``-Pfad. Relative Angaben gelten ab dem Ordner der Konfiguration.
+
+    ``file://feiertage_2027.ics`` und ``file://data/feiertage.ics`` sind relativ.
+    ``file:///C:/kalender/feiertage.ics`` bleibt absolut.
+    """
+    parsed = urlparse(url)
+    if parsed.netloc in ("", "localhost"):
+        raw = unquote(parsed.path)
+        if len(raw) >= 3 and raw[0] == "/" and raw[2] == ":":
+            raw = raw[1:]
+    else:
+        raw = unquote(parsed.netloc + parsed.path)
+    candidate = Path(raw)
+    if not candidate.is_absolute():
+        candidate = config_dir / candidate
+    return candidate
+
+
+def _parse_source(raw: dict[str, Any], index: int, config_dir: Path) -> SourceConfig:
     ctx = f"sources[{index}]"
     name = str(_require(raw, "name", ctx))
     style = _parse_style(raw.get("style"))
+    url = raw.get("url")
+    path = raw.get("path")
+    if isinstance(url, str) and url.lower().startswith("file:"):
+        if path:
+            raise ConfigError(f"{ctx}: nur url ODER path angeben")
+        path = str(_file_url_path(url, config_dir))
+        url = None
     return SourceConfig(
         name=name,
-        url=raw.get("url"),
-        path=raw.get("path"),
+        url=url,
+        path=path,
         enabled=bool(raw.get("enabled", True)),
+        holidays=bool(raw.get("holidays", False)),
+        wrap_text=bool(raw.get("wrap_text", True)),
         style=style,
     )
 
@@ -141,7 +198,7 @@ def load_config(path: str | Path) -> AppConfig:
     if not isinstance(sources_raw, list) or not sources_raw:
         raise ConfigError("'sources' muss eine nicht-leere Liste sein")
 
-    sources = [_parse_source(item, i) for i, item in enumerate(sources_raw)]
+    sources = [_parse_source(item, i, config_path.parent) for i, item in enumerate(sources_raw)]
     enabled = [s for s in sources if s.enabled]
     if not enabled:
         raise ConfigError("Mindestens eine Quelle muss enabled: true haben")

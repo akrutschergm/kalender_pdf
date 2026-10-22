@@ -27,8 +27,6 @@ class SourceStyle:
     bar_color: str | None = None
     bar_text_color: str = "#ffffff"
     bar_font_size: float | None = None
-    show_time: bool = True
-    as_bar: bool = False
 
     def resolve_font_name(self, *, all_day: bool) -> str:
         if all_day and self.all_day_font_name:
@@ -67,6 +65,10 @@ class CalendarEvent:
     location: str | None = None
     description: str | None = None
     meta: dict = field(default_factory=dict)
+    holiday_calendar: bool = False
+    wrap_text: bool = True
+    source_index: int = 0
+    event_index: int = 0
 
     @property
     def start_date(self) -> date:
@@ -103,8 +105,6 @@ class CalendarEvent:
 
     def display_time(self, tz_name: str | None = None) -> str | None:
         if self.all_day or not isinstance(self.start, datetime):
-            return None
-        if not self.style.show_time:
             return None
         dt = self.start
         if dt.tzinfo is None:
