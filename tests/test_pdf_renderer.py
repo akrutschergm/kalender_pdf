@@ -20,6 +20,7 @@ from kalender_pdf.pdf_renderer import (
     paint_tracked_lines,
     wrap_text_lines,
     wrap_tracked,
+    bar_block_height,
     bar_text_baseline,
     format_generated_at,
     holiday_line_text,
@@ -246,6 +247,49 @@ def test_missing_days_have_no_bottom_line():
     jan_x = label
     assert not any(x0 <= april_x < x1 for x0, x1 in april)
     assert any(x0 <= jan_x < x1 for x0, x1 in april)
+
+
+def test_span_bar_wraps_and_grows():
+    summary = "Sommerferien der Gemeinde mit einem sehr langen Namen"
+    event = _event(
+        summary=summary,
+        start=date(2026, 7, 1),
+        end=date(2026, 7, 15),
+        kind=EventKind.MULTI_DAY,
+        style=SourceStyle(font_size=10, bar_color="#888888", bar_text_color="#000000"),
+    )
+    layout = LayoutConfig(max_event_lines=3, show_weekdays=False, bar_height_pt=9, event_line_gap_pt=1)
+    renderer = YearCalendarRenderer(2026, layout, [event])
+    renderer._col_w = 70
+    renderer._stroke_w = 4
+    renderer._stroke_edge = 1
+    renderer._stroke_gap = 1
+    plan = renderer._plan_cell(7, 1)
+    assert len(plan.bars) == 1
+    bar = plan.bars[0]
+    assert 2 <= len(bar.lines) <= layout.max_event_lines
+    assert bar.lines[-1].endswith("…")
+    assert bar.height == bar_block_height(len(bar.lines), renderer._font("Helvetica"), 10, 1, 9)
+    assert bar.height > layout.bar_height_pt
+    assert renderer._plan_cell(7, 2).bars == []
+
+    single = _event(
+        summary=summary,
+        start=date(2026, 7, 1),
+        end=date(2026, 7, 15),
+        kind=EventKind.MULTI_DAY,
+        wrap_text=False,
+        style=SourceStyle(font_size=10, bar_color="#888888", bar_text_color="#000000"),
+    )
+    plain = YearCalendarRenderer(2026, layout, [single])
+    plain._col_w = 70
+    plain._stroke_w = 4
+    plain._stroke_edge = 1
+    plain._stroke_gap = 1
+    short = plain._plan_cell(7, 1).bars[0]
+    assert len(short.lines) == 1
+    assert short.lines[0].endswith("…")
+    assert short.height == layout.bar_height_pt
 
 
 def test_bar_day_on_start_and_month_boundary():

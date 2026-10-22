@@ -5,7 +5,7 @@ from __future__ import annotations
 import calendar
 from collections import defaultdict
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -179,6 +179,26 @@ def bar_text_baseline(font_name: str, font_size: float, bottom: float, bar_h: fl
     face = pdfmetrics.getFont(font_name).face
     ascent = face.ascent * font_size / 1000.0
     return bottom + (bar_h - ascent) / 2.0
+
+
+def bar_block_height(
+    line_count: int,
+    font_name: str,
+    font_size: float,
+    line_gap: float,
+    min_height: float,
+) -> float:
+    """Höhe des Balkens. Eine Zeile bleibt bei ``min_height``.
+
+    Weitere Zeilen weiten den Block auf die Zeilenhöhe auf, plus die Unterlänge
+    der letzten Zeile, damit sie im Block bleibt.
+    """
+    if line_count <= 1:
+        return min_height
+    face = pdfmetrics.getFont(font_name).face
+    descent = abs(face.descent) * font_size / 1000.0
+    stack = line_count * font_size + (line_count - 1) * line_gap + descent
+    return max(min_height, stack)
 
 
 def format_generated_at(moment: datetime) -> str:
@@ -482,25 +502,6 @@ def _index_events(
     return texts, holidays, spans
 
 
-def _truncate(text: str, font_name: str, font_size: float, max_width: float) -> str:
-    if pdfmetrics.stringWidth(text, font_name, font_size) <= max_width:
-        return text
-    ellipsis = "…"
-    if pdfmetrics.stringWidth(ellipsis, font_name, font_size) > max_width:
-        return ""
-    low, high = 0, len(text)
-    best = ""
-    while low <= high:
-        mid = (low + high) // 2
-        candidate = text[:mid].rstrip() + ellipsis
-        if pdfmetrics.stringWidth(candidate, font_name, font_size) <= max_width:
-            best = candidate
-            low = mid + 1
-        else:
-            high = mid - 1
-    return best
-
-
 _TOP_INSET = 0.25 * mm
 _BOTTOM_PAD = 0.35 * mm
 _AFTER_HOLIDAY = 0.45 * mm
@@ -522,6 +523,7 @@ class _PlannedBar:
     lane: int
     top_from_top: float
     height: float
+    lines: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -791,6 +793,13 @@ class YearCalendarRenderer:
         max_lane = max(lanes)
         return self._lane_x(cell_right, max_lane, stroke_w, edge, gap) - pad
 
+    def _bar_text_width(self, lane: int, content_left: float, pad: float) -> float:
+        """Innenbreite des Balkens, abzüglich des Textabstands links und rechts."""
+        stroke_left = self._lane_x(self._col_w, lane, self._stroke_w, self._stroke_edge, self._stroke_gap)
+        width = max(1.0, stroke_left + self._stroke_w - content_left)
+        inset = min(pad, width * 0.15)
+        return max(1.0, width - 2 * inset)
+
     def _allocated_row_heights(self, usable_h: float) -> list[float]:
         floor = max(self.layout.day_font_size, self.layout.weekday_font_size) + 0.6 * mm
         needed: list[float] = []
@@ -885,8 +894,28 @@ class YearCalendarRenderer:
             if slots <= 0:
                 hidden = True
                 break
-            bars.append(_PlannedBar(event, lane, cursor, layout.bar_height_pt))
-            cursor += layout.bar_height_pt + line_gap
+            font_name = self._font(event.style.resolve_font_name(all_day=event.all_day))
+            font_size = event.style.resolve_font_size(all_day=event.all_day, bar=True)
+            max_lines = layout.max_event_lines if event.wrap_text else 1
+            label = event.label(layout.timezone)
+            wrapped = wrap_text_lines(
+                label,
+                font_name,
+                font_size,
+                self._bar_text_width(lane, content_left, pad),
+                max_lines,
+            )
+            if label and not wrapped:
+                hidden = True
+            height = bar_block_height(
+                len(wrapped) if wrapped else 1,
+                font_name,
+                font_size,
+                line_gap,
+                layout.bar_height_pt,
+            )
+            bars.append(_PlannedBar(event, lane, cursor, height, wrapped))
+            cursor += height + line_gap
             slots -= 1
 
         texts = self.texts.get((month, day), [])
@@ -988,7 +1017,7 @@ class YearCalendarRenderer:
             left = x + plan.content_left
             width = max(1.0, stroke_left + stroke_w - left)
             bottom = top - bar.top_from_top - bar.height
-            self._draw_horizontal_bar(c, bar.event, left, bottom, width, bar.height, pad)
+            self._draw_horizontal_bar(c, bar.event, left, bottom, width, bar.height, pad, bar.lines)
 
         for line in plan.lines:
             if line.layer != "text":
@@ -1051,6 +1080,7 @@ class YearCalendarRenderer:
         width: float,
         bar_h: float,
         pad: float,
+        lines: list[str],
     ) -> None:
         bg = _color(event.style.resolve_bar_color())
         fg = _color(event.style.bar_text_color)
@@ -1058,18 +1088,22 @@ class YearCalendarRenderer:
         font_size = event.style.resolve_font_size(all_day=event.all_day, bar=True)
         c.setFillColor(bg)
         c.rect(left, bottom, width, bar_h, fill=1, stroke=0)
-        inset = min(pad, width * 0.15)
-        text = _truncate(
-            event.label(self.layout.timezone),
-            font_name,
-            font_size,
-            max(1.0, width - 2 * inset),
-        )
-        if not text:
+        if not lines:
             return
+        inset = min(pad, width * 0.15)
         c.setFillColor(fg)
         c.setFont(font_name, font_size)
-        c.drawString(left + inset, bar_text_baseline(font_name, font_size, bottom, bar_h), text)
+        if len(lines) == 1:
+            c.drawString(left + inset, bar_text_baseline(font_name, font_size, bottom, bar_h), lines[0])
+            return
+        face = pdfmetrics.getFont(font_name).face
+        descent = abs(face.descent) * font_size / 1000.0
+        line_gap = self.layout.event_line_gap_pt
+        stack = len(lines) * font_size + (len(lines) - 1) * line_gap + descent
+        top_pad = max(0.0, (bar_h - stack) / 2)
+        for index, line in enumerate(lines):
+            baseline = bottom + bar_h - top_pad - font_size - index * (font_size + line_gap)
+            c.drawString(left + inset, baseline, line)
 
 
 def render_year_pdf(

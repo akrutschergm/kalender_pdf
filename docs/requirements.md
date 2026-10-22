@@ -53,7 +53,7 @@ Ein ausführbares Python-Tool, das aus mehreren iCalendar-Quellen einen druckfer
 - Das Wochentagskürzel steht links, vertikal in der Zeile zentriert, und bleibt frei. Feiertagsnamen und übrige Termine beginnen rechts davon auf derselben Einzugslinie.
 - Feiertage sind die erste Inhaltszeile und stehen nicht in derselben Zeile wie das Wochentagskürzel. Gibt es an dem Tag keinen Feiertag, beginnt der erste Termin oben in der Zelle.
 - Die Feiertagsnamen eines Tages sind ein gemeinsamer Text. Er wird wie ein Termin umbrochen oder auf eine Zeile gekürzt.
-- Lange Termintexte werden standardmäßig mehrzeilig dargestellt, höchstens `layout.max_event_lines` Zeilen (Standard 3). Die letzte Zeile endet mit Auslassung, wenn der Text nicht vollständig passt. Pro Quelle schaltet `wrap_text: false` auf eine einzelne Zeile.
+- Lange Termintexte werden standardmäßig mehrzeilig dargestellt, höchstens `layout.max_event_lines` Zeilen (Standard 3), auch im Balken mehrtägiger Termine. Die letzte Zeile endet mit Auslassung, wenn der Text nicht vollständig passt. Pro Quelle schaltet `wrap_text: false` auf eine einzelne Zeile. Der Balken wird so hoch wie seine Zeilen, und die Tageszeile wächst mit.
 - Reicht die Höhe einer Tageszeile für die Termine nicht, wird diese Zeile so weit gedehnt wie nötig. Die übrigen Tageszeilen werden anteilig verkleinert.
 - Passt diese Aufteilung nicht auf die Seite, werden alle Tageszeilen anteilig verkleinert, bis sie auf das Blatt passen.
 - `layout.max_events_per_cell` begrenzt, wie viele Balken und Texttermine in einer Zelle gezeichnet werden (Standard 6). Feiertage in der ersten Zeile zählen nicht mit. Weitere Termine werden weggelassen.
